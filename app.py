@@ -52,22 +52,47 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. EARTH ENGINE INITIALIZATION (Robust Secrets Parser)
+# 2. PASSWORD PROTECTION SYSTEM (SECURE GATEKEEPER)
+# ---------------------------------------------------------
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == st.secrets.get("APP_PASSWORD", ""):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.markdown("## 🔒 Access Restricted")
+        st.caption("This dashboard is password protected. Enter authorized passcode to continue.")
+        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.markdown("## 🔒 Access Restricted")
+        st.caption("This dashboard is password protected. Enter authorized passcode to continue.")
+        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
+        st.error("❌ Incorrect Passcode")
+        return False
+    else:
+        return True
+
+if not check_password():
+    st.stop()  # Lock app execution until correct password is hit
+
+# ---------------------------------------------------------
+# 3. EARTH ENGINE INITIALIZATION (Protected Secrets Handling)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
-    # Priority 1: Check Streamlit Secrets for Cloud Deployment
     if "GCP_SERVICE_ACCOUNT" in st.secrets:
         try:
             secrets_raw = st.secrets["GCP_SERVICE_ACCOUNT"]
             
-            # Handle both JSON string and TOML dictionary formats
             if isinstance(secrets_raw, str):
                 service_account_info = json.loads(secrets_raw)
             else:
                 service_account_info = dict(secrets_raw)
 
-            # Fix newline formatting in private key
             if "private_key" in service_account_info:
                 service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
@@ -77,11 +102,11 @@ def init_ee():
             )
             ee.Initialize(credentials=credentials)
             return
-        except Exception as e:
-            st.error(f"Google Earth Engine Authentication Failed: {e}")
+        except Exception:
+            # Generic error to prevent sensitive credential leak in UI
+            st.error("Authentication with Earth Engine failed. Please contact administrator.")
             st.stop()
 
-    # Priority 2: Fallback for local machine testing
     try:
         ee.Initialize()
     except Exception:
@@ -91,7 +116,7 @@ def init_ee():
 init_ee()
 
 # ---------------------------------------------------------
-# 3. GLACIER DATABASE (Coordinates & Default Zooms)
+# 4. GLACIER DATABASE
 # ---------------------------------------------------------
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {"lat": 30.9256, "lon": 79.0669, "zoom": 12},
@@ -101,7 +126,7 @@ GLACIERS = {
 }
 
 # ---------------------------------------------------------
-# 4. SIDEBAR CONTROLS
+# 5. SIDEBAR CONTROLS
 # ---------------------------------------------------------
 st.sidebar.title("🧊 Glacier Tracker AI")
 st.sidebar.markdown("---")
@@ -114,25 +139,22 @@ year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
 year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
 # ---------------------------------------------------------
-# 5. CORE ANALYTICS ENGINE (NDSI Algorithm & Area Calculation)
+# 6. CORE ANALYTICS ENGINE
 # ---------------------------------------------------------
 def get_glacier_analytics(lat, lon, year):
-    roi = ee.Geometry.Point([lon, lat]).buffer(8000) # 8km Radius Area
+    roi = ee.Geometry.Point([lon, lat]).buffer(8000)
     start_date = f"{year}-05-01"
     end_date = f"{year}-09-30"
     
-    # Fetch Copernicus Sentinel-2 Surface Reflectance
     s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
           .filterBounds(roi)
           .filterDate(start_date, end_date)
           .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15))
           .median())
     
-    # Normalized Difference Snow Index (NDSI = (B3 - B11) / (B3 + B11))
     ndsi = s2.normalizedDifference(['B3', 'B11']).rename('NDSI')
-    snow_mask = ndsi.gt(0.45) # Snow Thresholding
+    snow_mask = ndsi.gt(0.45)
     
-    # Square Kilometer Pixel Area Calculation
     area_image = snow_mask.multiply(ee.Image.pixelArea())
     stats = area_image.reduceRegion(
         reducer=ee.Reducer.sum(),
@@ -145,7 +167,7 @@ def get_glacier_analytics(lat, lon, year):
     return snow_mask, area_sqkm, roi
 
 # ---------------------------------------------------------
-# 6. DASHBOARD HEADER & HIGH-VISIBILITY METRICS
+# 7. DASHBOARD HEADER & HIGH-VISIBILITY METRICS
 # ---------------------------------------------------------
 st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
 st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
@@ -154,11 +176,9 @@ with st.spinner("Fetching satellite imagery from European Space Agency (ESA)..."
     mask_base, area_base, roi = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_baseline)
     mask_curr, area_curr, _ = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_current)
 
-# Area Change Math
 area_lost = area_base - area_curr
 perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
 
-# Render Custom Metric Cards with HTML (Guaranteed Crisp Visibility)
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -198,7 +218,7 @@ with col4:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 7. MAP VISUALIZATION (Esri World Imagery + GEE Overlay)
+# 8. MAP VISUALIZATION
 # ---------------------------------------------------------
 st.subheader(f"🗺️ Interactive Glacier Ice Overlay ({year_baseline} vs {year_current})")
 
@@ -209,10 +229,8 @@ m = folium.Map(
     attr="Esri World Imagery"
 )
 
-# Cyan Palette for Glacier Ice Highlight
 viz_params = {'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']}
 
-# Baseline Layer Overlay
 map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
 folium.TileLayer(
     tiles=map_id_base['tile_fetcher'].url_format,
@@ -220,7 +238,6 @@ folium.TileLayer(
     name=f'Glacier Ice ({year_baseline})'
 ).add_to(m)
 
-# Current Year Layer Overlay
 map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
 folium.TileLayer(
     tiles=map_id_curr['tile_fetcher'].url_format,
@@ -230,11 +247,10 @@ folium.TileLayer(
 
 folium.LayerControl(collapsed=False).add_to(m)
 
-# Render Folium Map in Streamlit
 st_folium(m, width=1300, height=500)
 
 # ---------------------------------------------------------
-# 8. ANALYTICS CHART
+# 9. ANALYTICS CHART
 # ---------------------------------------------------------
 st.markdown("---")
 st.subheader("📊 Ice Area Retreat Summary Chart")
