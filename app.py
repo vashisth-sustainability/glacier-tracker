@@ -22,18 +22,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. EARTH ENGINE INITIALIZATION (Updated for Streamlit Secrets)
+# 2. EARTH ENGINE INITIALIZATION (Robust Secrets Parser)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
-    # 1. First Priority: Check Streamlit Secrets (For Cloud Deployment)
+    # Priority 1: Check Streamlit Secrets for Cloud Deployment
     if "GCP_SERVICE_ACCOUNT" in st.secrets:
         try:
             secrets_raw = st.secrets["GCP_SERVICE_ACCOUNT"]
+            
+            # Handle both JSON string and TOML dictionary formats
             if isinstance(secrets_raw, str):
                 service_account_info = json.loads(secrets_raw)
             else:
                 service_account_info = dict(secrets_raw)
+
+            # Fix newline formatting in private key
+            if "private_key" in service_account_info:
+                service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
             credentials = ee.ServiceAccountCredentials(
                 service_account_info["client_email"],
@@ -42,9 +48,10 @@ def init_ee():
             ee.Initialize(credentials=credentials)
             return
         except Exception as e:
-            st.warning(f"Service Account init failed, trying fallback: {e}")
+            st.error(f"Google Earth Engine Authentication Failed: {e}")
+            st.stop()
 
-    # 2. Second Priority: Fallback for local machine testing
+    # Priority 2: Fallback for local machine testing
     try:
         ee.Initialize()
     except Exception:
