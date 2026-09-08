@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import plotly.graph_objects as go
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIGURATION & STYLING (Dark Theme SaaS Look)
+# 1. PAGE CONFIGURATION & HIGH CONTRAST STYLING
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Himalayan Glacier Satellite Monitor",
@@ -14,10 +14,38 @@ st.set_page_config(
     layout="wide"
 )
 
+# High contrast styling for Streamlit metric cards and text readability
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stMetric { background-color: #1f2937; padding: 15px; border-radius: 10px; border: 1px solid #374151; }
+    
+    /* High contrast metric containers */
+    div[data-testid="stMetric"] {
+        background-color: #1e293b !important;
+        padding: 16px !important;
+        border-radius: 10px !important;
+        border: 1px solid #334155 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Metric title text */
+    div[data-testid="stMetricLabel"] > label {
+        color: #94a3b8 !important;
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Metric main numbers/values */
+    div[data-testid="stMetricValue"] > div {
+        color: #ffffff !important;
+        font-size: 1.8rem !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Metric delta text adjustment */
+    div[data-testid="stMetricDelta"] {
+        font-weight: 600 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
