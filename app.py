@@ -80,7 +80,7 @@ if not check_password():
     st.stop()  # Lock app execution until correct password is hit
 
 # ---------------------------------------------------------
-# 3. EARTH ENGINE INITIALIZATION (Protected Secrets Handling)
+# 3. EARTH ENGINE INITIALIZATION (Protected Secrets & Project ID Handling)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
@@ -100,11 +100,13 @@ def init_ee():
                 service_account_info["client_email"],
                 key_data=json.dumps(service_account_info)
             )
-            ee.Initialize(credentials=credentials)
+            
+            # Explicit Project ID passing to prevent GCP token refresh error
+            project_id = service_account_info.get("project_id", "glacier-tracker")
+            ee.Initialize(credentials=credentials, project=project_id)
             return
-        except Exception:
-            # Generic error to prevent sensitive credential leak in UI
-            st.error("Authentication with Earth Engine failed. Please contact administrator.")
+        except Exception as e:
+            st.error(f"❌ Authentication with Earth Engine failed: {e}")
             st.stop()
 
     try:
@@ -139,7 +141,7 @@ year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
 year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
 # ---------------------------------------------------------
-# 6. CORE ANALYTICS ENGINE
+# 6. CORE ANALYTICS ENGINE (Safeguarded Calculations)
 # ---------------------------------------------------------
 def get_glacier_analytics(lat, lon, year):
     roi = ee.Geometry.Point([lon, lat]).buffer(8000)
@@ -163,7 +165,9 @@ def get_glacier_analytics(lat, lon, year):
         maxPixels=1e9
     )
     
-    area_sqkm = ee.Number(stats.get('NDSI')).divide(1e6).getInfo()
+    # Safe value retrieval to prevent Null pointer errors
+    raw_val = stats.get('NDSI')
+    area_sqkm = ee.Number(ee.Algorithms.If(raw_val, raw_val, 0)).divide(1e6).getInfo()
     return snow_mask, area_sqkm, roi
 
 # ---------------------------------------------------------
