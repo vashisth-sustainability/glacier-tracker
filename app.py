@@ -1,3 +1,4 @@
+import json
 import streamlit as st
 import ee
 import folium
@@ -21,10 +22,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. EARTH ENGINE INITIALIZATION
+# 2. EARTH ENGINE INITIALIZATION (Updated for Streamlit Secrets)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
+    # 1. First Priority: Check Streamlit Secrets (For Cloud Deployment)
+    if "GCP_SERVICE_ACCOUNT" in st.secrets:
+        try:
+            secrets_raw = st.secrets["GCP_SERVICE_ACCOUNT"]
+            if isinstance(secrets_raw, str):
+                service_account_info = json.loads(secrets_raw)
+            else:
+                service_account_info = dict(secrets_raw)
+
+            credentials = ee.ServiceAccountCredentials(
+                service_account_info["client_email"],
+                key_data=json.dumps(service_account_info)
+            )
+            ee.Initialize(credentials=credentials)
+            return
+        except Exception as e:
+            st.warning(f"Service Account init failed, trying fallback: {e}")
+
+    # 2. Second Priority: Fallback for local machine testing
     try:
         ee.Initialize()
     except Exception:
