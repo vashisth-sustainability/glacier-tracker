@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import plotly.graph_objects as go
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIGURATION & HIGH CONTRAST STYLING
+# 1. PAGE CONFIGURATION & STYLING
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Himalayan Glacier Satellite Monitor",
@@ -14,38 +14,40 @@ st.set_page_config(
     layout="wide"
 )
 
-# High contrast styling for Streamlit metric cards and text readability
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     
-    /* High contrast metric containers */
-    div[data-testid="stMetric"] {
-        background-color: #1e293b !important;
-        padding: 16px !important;
-        border-radius: 10px !important;
-        border: 1px solid #334155 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    /* Custom High-Contrast Metric Cards */
+    .metric-card {
+        background-color: #1a2234;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        margin-bottom: 10px;
     }
-    
-    /* Metric title text */
-    div[data-testid="stMetricLabel"] > label {
-        color: #94a3b8 !important;
-        font-size: 0.95rem !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Metric main numbers/values */
-    div[data-testid="stMetricValue"] > div {
-        color: #ffffff !important;
-        font-size: 1.8rem !important;
+    .metric-label {
+        color: #E2E8F0 !important;
+        font-size: 15px !important;
         font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
     }
-    
-    /* Metric delta text adjustment */
-    div[data-testid="stMetricDelta"] {
+    .metric-value {
+        color: #FFFFFF !important;
+        font-size: 26px !important;
+        font-weight: 800 !important;
+    }
+    .metric-sub {
+        font-size: 14px !important;
         font-weight: 600 !important;
+        margin-top: 4px;
     }
+    .sub-red { color: #FF4D6D !important; }
+    .sub-green { color: #00E676 !important; }
+    .sub-cyan { color: #00F0FF !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -143,7 +145,7 @@ def get_glacier_analytics(lat, lon, year):
     return snow_mask, area_sqkm, roi
 
 # ---------------------------------------------------------
-# 6. DASHBOARD HEADER & LIVE METRICS
+# 6. DASHBOARD HEADER & HIGH-VISIBILITY METRICS
 # ---------------------------------------------------------
 st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
 st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
@@ -156,12 +158,42 @@ with st.spinner("Fetching satellite imagery from European Space Agency (ESA)..."
 area_lost = area_base - area_curr
 perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
 
-# Metric Cards Layout
+# Render Custom Metric Cards with HTML (Guaranteed Crisp Visibility)
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"Glacier Area ({year_baseline})", f"{area_base:.2f} sq km")
-col2.metric(f"Glacier Area ({year_current})", f"{area_curr:.2f} sq km")
-col3.metric("Ice Area Retreat", f"{area_lost:.2f} sq km", delta=f"-{perc_lost:.1f}%", delta_color="inverse")
-col4.metric("Data Source", "Sentinel-2 (10m Res)", delta="Live Stream")
+
+with col1:
+    st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Glacier Area ({year_baseline})</div>
+            <div class="metric-value">{area_base:.2f} <span style="font-size: 16px;">sq km</span></div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Glacier Area ({year_current})</div>
+            <div class="metric-value">{area_curr:.2f} <span style="font-size: 16px;">sq km</span></div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">Ice Area Retreat</div>
+            <div class="metric-value">{area_lost:.2f} <span style="font-size: 16px;">sq km</span></div>
+            <div class="metric-sub sub-red">▼ -{perc_lost:.1f}%</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown("""
+        <div class="metric-card">
+            <div class="metric-label">Data Source</div>
+            <div class="metric-value" style="font-size: 20px !important; margin-top: 5px;">Sentinel-2 (10m)</div>
+            <div class="metric-sub sub-cyan">● Live Stream</div>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 
