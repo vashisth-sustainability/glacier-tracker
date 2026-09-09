@@ -1,5 +1,8 @@
 streamlit
-earthengine-api
-geemap
-folium
 streamlit-folium
+earthengine-api
+folium
+plotly
+reportlab
+matplotlib
+pillow
