@@ -14,7 +14,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIGURATION & STYLING
+# 1. PAGE CONFIGURATION & CUSTOM STYLING
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Himalayan Glacier Satellite Monitor",
@@ -150,12 +150,12 @@ def init_ee():
 init_ee()
 
 # ---------------------------------------------------------
-# 4. GLACIER DATABASE (UPGRADED WITH WGMS METADATA)
+# 4. CUSTOM GLACIER DATABASE (PROPRIETARY STRUCTURE)
 # ---------------------------------------------------------
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
         "basin": "Ganga Basin",
-        "wgi_id": "IN-5O131-00-012",
+        "custom_id": "HIM-UK-GAN-01",
         "mean_elevation": "5,000 m",
         "lat": 30.9256, "lon": 79.0669, "zoom": 12,
         "danger_zones": "Gaumukh Snout & Tapovan Route (Structural Fracture & Icefall)",
@@ -169,7 +169,7 @@ GLACIERS = {
     },
     "Siachen Glacier (Ladakh)": {
         "basin": "Indus Basin",
-        "wgi_id": "IN-5Q212-00-001",
+        "custom_id": "HIM-LD-SIA-02",
         "mean_elevation": "5,400 m",
         "lat": 35.4211, "lon": 77.1095, "zoom": 11,
         "danger_zones": "Teram Shehr Confluence & Sub-sector North Snout",
@@ -183,7 +183,7 @@ GLACIERS = {
     },
     "Zanskar Glacier (Ladakh)": {
         "basin": "Indus Basin",
-        "wgi_id": "IN-5Q210-00-008",
+        "custom_id": "HIM-LD-ZAN-03",
         "mean_elevation": "5,150 m",
         "lat": 33.8500, "lon": 76.8333, "zoom": 12,
         "danger_zones": "Chadar Route Thin Ice Zones & Snout Outflow Bed",
@@ -197,7 +197,7 @@ GLACIERS = {
     },
     "Pindari Glacier (Uttarakhand)": {
         "basin": "Ganga Basin",
-        "wgi_id": "IN-5O132-00-005",
+        "custom_id": "HIM-UK-PIN-04",
         "mean_elevation": "4,800 m",
         "lat": 30.2625, "lon": 79.9922, "zoom": 13,
         "danger_zones": "Zero Point Viewpoint & Traill's Pass Approach Crevasses",
@@ -212,12 +212,12 @@ GLACIERS = {
 }
 
 # ---------------------------------------------------------
-# 5. SIDEBAR CONTROLS (WGMS BASIN FILTERING)
+# 5. SIDEBAR CONTROLS
 # ---------------------------------------------------------
 st.sidebar.title("🧊 Glacier Tracker AI")
 st.sidebar.markdown("---")
 
-selected_basin = st.sidebar.selectbox("Filter River Basin (WGMS Standard)", ["All Basins", "Ganga Basin", "Indus Basin", "Brahmaputra Basin"])
+selected_basin = st.sidebar.selectbox("Filter Regional Basin", ["All Basins", "Ganga Basin", "Indus Basin"])
 
 filtered_glaciers = [
     g for g, data in GLACIERS.items()
@@ -260,7 +260,6 @@ def get_glacier_analytics(lat, lon, year):
     area_sqkm = ee.Number(ee.Algorithms.If(raw_val, raw_val, 0)).divide(1e6).getInfo()
     return snow_mask, area_sqkm, roi
 
-# Dynamic Matplotlib Chart Engine for PDF Inclusion
 def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     plt.style.use('ggplot')
     fig, ax = plt.subplots(figsize=(6, 2.8), dpi=200)
@@ -272,7 +271,7 @@ def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
         width=0.45
     )
     
-    ax.set_ylabel('Ice Surface Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
+    ax.set_ylabel('Ice Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
     ax.set_title('Glacier Coverage Reduction Analysis', fontsize=10, fontweight='bold', color='#0f172a', pad=10)
     ax.tick_params(axis='both', which='major', labelsize=8.5)
     ax.set_ylim(0, max(area_b, area_c) * 1.25)
@@ -298,7 +297,7 @@ def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     return img_buf
 
 # ---------------------------------------------------------
-# 7. ENHANCED AUTO-GENERATED PDF REPORT GENERATOR WITH GRAPH
+# 7. ENHANCED AUTO-GENERATED PDF REPORT GENERATOR
 # ---------------------------------------------------------
 def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, area_l, perc_l, loss_rate, info):
     buffer = io.BytesIO()
@@ -336,10 +335,10 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
 
     # Title Banner
     story.append(Paragraph("HIMALAYAN GLACIER SATELLITE ANALYSIS REPORT", title_style))
-    story.append(Paragraph(f"Target Location: <b>{glacier_name}</b> | WGI ID: {info['wgi_id']} | Basin: {info['basin']}", subtitle_style))
+    story.append(Paragraph(f"Target Location: <b>{glacier_name}</b> | Registry ID: {info['custom_id']} | Basin: {info['basin']}", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8))
 
-    # Metrics Summary & Visual Plot (Graphical Representation)
+    # Metrics Summary & Visual Plot
     story.append(Paragraph("1. SATELLITE RETREAT METRICS & GRAPHICAL ANALYSIS", heading_style))
     
     table_data = [
@@ -397,37 +396,37 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     story.append(rt)
     story.append(Spacer(1, 6))
 
-    # Environmental Trigger & Public Guidelines
+    # Environmental Trigger & Field Guidelines
     story.append(Paragraph("3. ENVIRONMENTAL TRIGGERS & FIELD GUIDELINES", heading_style))
     adv_text = (
         f"• <b>Heatwave Melt Trigger:</b> {info['heatwave_trigger']}<br/>"
         f"• <b>Downstream Impact:</b> Accelerated melting affects {info['downstream_impact']} with river siltation.<br/>"
-        f"• <b>Trekker Guideline:</b> Snout boundaries are structurally unviable. Entry into flagged zones is dangerous without technical ice gear."
+        f"• <b>Field Advisory:</b> Snout boundaries are structurally unstable. Entry into flagged zones is strictly prohibited without technical ice gear."
     )
     story.append(Paragraph(adv_text, body_style))
     story.append(Spacer(1, 10))
 
     # Footer
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#94a3b8"), spaceAfter=4))
-    story.append(Paragraph("<i>Auto-Generated Environmental Intelligence Report • SP Vasisth Sustainability Consulting</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
+    story.append(Paragraph("<i>Auto-Generated Environmental Intelligence Report • Proprietary Satellite Analytics Platform</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
 
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
 # ---------------------------------------------------------
-# 8. DASHBOARD HEADER, WGMS METADATA & METRICS
+# 8. DASHBOARD HEADER, METADATA & METRICS
 # ---------------------------------------------------------
 st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
 st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
 
-# WGMS Standard Metadata Header Card
-st.markdown("### 📍 WGMS Standard Metadata Card")
+# Custom Profile Card
+st.markdown("### 📍 Glacier Overview & Metadata")
 m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-m_col1.metric("WGI Standard ID", selected_glacier["wgi_id"])
-m_col2.metric("River Basin", selected_glacier["basin"])
+m_col1.metric("Registry ID", selected_glacier["custom_id"])
+m_col2.metric("Primary Basin", selected_glacier["basin"])
 m_col3.metric("Mean Elevation", selected_glacier["mean_elevation"])
-m_col4.metric("Annual Retreat", selected_glacier["retreat_rate"])
+m_col4.metric("Avg Annual Retreat", selected_glacier["retreat_rate"])
 
 st.markdown("---")
 
@@ -607,5 +606,5 @@ st.info(f"""
 **📢 Automated Weekly Field Intelligence Summary:**
 * **Retreat Summary:** Between **{year_baseline}** and **{year_current}**, {selected_glacier_name} experienced a net ice loss of **{area_lost:.2f} sq km** (**-{perc_lost:.1f}%**) at an average velocity of **{annual_loss_rate:.2f} sq km/year**.
 * **Environmental Impact:** Meltwater surge impacts **{selected_glacier['downstream_impact']}**, increasing seasonal river turbidity and flood risk.
-* **Trekker Advisory:** Maintain camp setups strictly in recommended safe staging zones. Snout ice boundaries should be avoided without professional high-altitude ice gear.
+* **Field Advisory:** Maintain camp setups strictly in recommended safe staging zones. Snout ice boundaries should be avoided without professional high-altitude ice gear.
 """)
