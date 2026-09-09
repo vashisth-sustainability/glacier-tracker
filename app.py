@@ -1,9 +1,17 @@
 import json
+import io
 import streamlit as st
 import ee
 import folium
 from streamlit_folium import st_folium
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+
+# ReportLab Imports for Professional PDF
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # ---------------------------------------------------------
 # 1. PAGE CONFIGURATION & STYLING
@@ -18,7 +26,6 @@ st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     
-    /* Custom High-Contrast Metric Cards */
     .metric-card {
         background-color: #1a2234;
         border: 1px solid #334155;
@@ -49,7 +56,6 @@ st.markdown("""
     .sub-green { color: #00E676 !important; }
     .sub-cyan { color: #00F0FF !important; }
 
-    /* Danger / Risk Zone Styling */
     .risk-card-high {
         background-color: #3d0c11;
         border: 1px solid #ff4d6d;
@@ -78,7 +84,6 @@ st.markdown("""
 # 2. PASSWORD PROTECTION SYSTEM (WITH ADMIN URL BYPASS)
 # ---------------------------------------------------------
 def check_password():
-    # 🗝️ ADMIN BYPASS: Checking if 'key=swastik' is in URL parameters
     query_params = st.query_params
     if query_params.get("key") == "swastik":
         return True
@@ -105,7 +110,7 @@ def check_password():
         return True
 
 if not check_password():
-    st.stop()  # Lock app execution until correct password or admin key is hit
+    st.stop()
 
 # ---------------------------------------------------------
 # 3. EARTH ENGINE INITIALIZATION
@@ -150,30 +155,42 @@ init_ee()
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
         "lat": 30.9256, "lon": 79.0669, "zoom": 12,
-        "danger_zones": "Gaumukh Snout & Tapovan Trek Area (High Glacial Lake Outburst Risk)",
-        "safe_zones": "Gangotri Temple Base / Dharali Valley",
+        "danger_zones": "Gaumukh Snout & Tapovan Route (Structural Fracture & Icefall)",
+        "safe_zones": "Gangotri Temple Base / Dharali Valley (Bedrock Staging Zone)",
         "retreat_rate": "22.5 meters/year",
-        "downstream_impact": "Bhagirathi & Ganga River Basins (High siltation & flash flood threat)"
+        "glof_risk": "CRITICAL - 2 Proglacial Lakes Expanding",
+        "early_warning_window": "35–45 minutes travel time to downstream valley",
+        "heatwave_trigger": "Melt surge risk spikes if regional temperature > +2.5°C over baseline",
+        "downstream_impact": "Bhagirathi & Upper Ganga Basins (Flash Flooding & High Siltation)"
     },
     "Siachen Glacier (Ladakh)": {
         "lat": 35.4211, "lon": 77.1095, "zoom": 11,
-        "danger_zones": "Sub-sector North Snout & Teram Shehr Glacier confluence (Ice avalanche prone)",
-        "safe_zones": "Base Camp Ground & Sasoma Valley Transit Point",
+        "danger_zones": "Teram Shehr Confluence & Sub-sector North Snout",
+        "safe_zones": "Base Camp Ground & Sasoma Transit Point",
         "retreat_rate": "35 meters/year",
+        "glof_risk": "MODERATE - Moraine Dammed Accumulation",
+        "early_warning_window": "60–75 minutes warning buffer for Nubra Valley",
+        "heatwave_trigger": "Melt surge risk spikes if regional temperature > +3.0°C over baseline",
         "downstream_impact": "Nubra & Shyok River Systems"
     },
     "Zanskar Glacier (Ladakh)": {
         "lat": 33.8500, "lon": 76.8333, "zoom": 12,
-        "danger_zones": "Chadar Trek Route (Thin ice collapse zones in early spring)",
+        "danger_zones": "Chadar Route Thin Ice Zones & Snout Outflow Bed",
         "safe_zones": "Padum Plain Settlement Area",
         "retreat_rate": "18 meters/year",
-        "downstream_impact": "Zanskar & Indus River Valley"
+        "glof_risk": "ELEVATED - Seasonal Ice Dam Breaches",
+        "early_warning_window": "50 minutes flood arrival buffer",
+        "heatwave_trigger": "Melt surge risk spikes if regional temperature > +2.0°C over baseline",
+        "downstream_impact": "Zanskar & Indus River Valleys"
     },
     "Pindari Glacier (Uttarakhand)": {
         "lat": 30.2625, "lon": 79.9922, "zoom": 13,
-        "danger_zones": "Zero Point Viewpoint & Trail leading to Traill's Pass (Crevasse formation)",
+        "danger_zones": "Zero Point Viewpoint & Traill's Pass Approach Crevasses",
         "safe_zones": "Khati Village Base Encampment",
         "retreat_rate": "15 meters/year",
+        "glof_risk": "LOW TO MODERATE - Supraglacial Ponds",
+        "early_warning_window": "40 minutes buffer to Pindar Gorge",
+        "heatwave_trigger": "Melt surge risk spikes if regional temperature > +2.8°C over baseline",
         "downstream_impact": "Pindar River & Alaknanda Tributaries"
     }
 }
@@ -192,7 +209,7 @@ year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
 year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
 # ---------------------------------------------------------
-# 6. CORE ANALYTICS ENGINE
+# 6. CORE ANALYTICS ENGINE & GRAPH PLOTTER
 # ---------------------------------------------------------
 def get_glacier_analytics(lat, lon, year):
     roi = ee.Geometry.Point([lon, lat]).buffer(8000)
@@ -220,8 +237,163 @@ def get_glacier_analytics(lat, lon, year):
     area_sqkm = ee.Number(ee.Algorithms.If(raw_val, raw_val, 0)).divide(1e6).getInfo()
     return snow_mask, area_sqkm, roi
 
+# Dynamic Matplotlib Chart Engine for PDF Inclusion
+def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
+    plt.style.use('ggplot')
+    fig, ax = plt.subplots(figsize=(6, 2.8), dpi=200)
+    
+    bars = ax.bar(
+        [f'Baseline ({b_yr})', f'Current ({c_yr})'], 
+        [area_b, area_c], 
+        color=['#0284c7', '#dc2626'],
+        width=0.45
+    )
+    
+    ax.set_ylabel('Ice Surface Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
+    ax.set_title('Glacier Coverage Reduction Analysis', fontsize=10, fontweight='bold', color='#0f172a', pad=10)
+    ax.tick_params(axis='both', which='major', labelsize=8.5)
+    ax.set_ylim(0, max(area_b, area_c) * 1.25)
+    
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width()/2.0, 
+            yval + (max(area_b, area_c) * 0.03), 
+            f'{yval:.2f} sq km', 
+            ha='center', 
+            va='bottom', 
+            fontsize=8.5, 
+            fontweight='bold',
+            color='#0f172a'
+        )
+
+    plt.tight_layout()
+    img_buf = io.BytesIO()
+    plt.savefig(img_buf, format='png', dpi=200, bbox_inches='tight')
+    plt.close(fig)
+    img_buf.seek(0)
+    return img_buf
+
 # ---------------------------------------------------------
-# 7. DASHBOARD HEADER & METRICS
+# 7. ENHANCED AUTO-GENERATED PDF REPORT GENERATOR WITH GRAPH
+# ---------------------------------------------------------
+def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, area_l, perc_l, loss_rate, info):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36
+    )
+    styles = getSampleStyleSheet()
+
+    COLOR_PRIMARY = colors.HexColor("#0f172a")
+    COLOR_ACCENT = colors.HexColor("#0284c7")
+
+    title_style = ParagraphStyle(
+        'DocTitle', parent=styles['Heading1'],
+        fontSize=15, textColor=COLOR_PRIMARY, spaceAfter=2, fontName="Helvetica-Bold"
+    )
+    subtitle_style = ParagraphStyle(
+        'DocSub', parent=styles['Normal'],
+        fontSize=8.5, textColor=colors.HexColor("#475569"), spaceAfter=8
+    )
+    heading_style = ParagraphStyle(
+        'SecHead', parent=styles['Heading2'],
+        fontSize=10.5, textColor=COLOR_ACCENT, spaceBefore=6, spaceAfter=4, fontName="Helvetica-Bold"
+    )
+    body_style = ParagraphStyle(
+        'BodyTextCustom', parent=styles['Normal'],
+        fontSize=8, leading=11, textColor=colors.HexColor("#1e293b")
+    )
+    bold_style = ParagraphStyle(
+        'BoldCustom', parent=body_style, fontName="Helvetica-Bold"
+    )
+
+    story = []
+
+    # Title Banner
+    story.append(Paragraph("HIMALAYAN GLACIER SATELLITE ANALYSIS REPORT", title_style))
+    story.append(Paragraph(f"Target Location: <b>{glacier_name}</b> | Engine: ESA Sentinel-2 Automated Analytics", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8))
+
+    # Metrics Summary & Visual Plot (Graphical Representation)
+    story.append(Paragraph("1. SATELLITE RETREAT METRICS & GRAPHICAL ANALYSIS", heading_style))
+    
+    table_data = [
+        [Paragraph("<b>Metric Parameter</b>", body_style), Paragraph("<b>Observed Value</b>", body_style)],
+        [Paragraph(f"Baseline Ice Coverage ({baseline_yr})", body_style), Paragraph(f"{area_b:.2f} sq km", body_style)],
+        [Paragraph(f"Current Ice Coverage ({current_yr})", body_style), Paragraph(f"{area_c:.2f} sq km", body_style)],
+        [Paragraph("Net Ice Coverage Loss", body_style), Paragraph(f"<font color='#dc2626'><b>-{area_l:.2f} sq km (-{perc_l:.1f}%)</b></font>", body_style)],
+        [Paragraph("Annual Loss Velocity", body_style), Paragraph(f"<b>{loss_rate:.2f} sq km / year</b>", body_style)]
+    ]
+    t = Table(table_data, colWidths=[180, 120])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+
+    # Add Visual Chart Plot
+    chart_img_buf = generate_pdf_chart(area_b, area_c, baseline_yr, current_yr)
+    rl_chart = RLImage(chart_img_buf, width=220, height=105)
+
+    layout_table = Table([[t, rl_chart]], colWidths=[310, 230])
+    layout_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+    story.append(layout_table)
+    story.append(Spacer(1, 6))
+
+    # Danger Zones & GLOF Hazard Status
+    story.append(Paragraph("2. HAZARD MAP & CRITICAL DANGER ZONES", heading_style))
+    
+    risk_table_data = [
+        [
+            Paragraph("<font color='#dc2626'><b>🚨 HIGH RISK DANGER ZONE</b></font>", bold_style),
+            Paragraph(f"<b>Area:</b> {info['danger_zones']}<br/><b>Threat:</b> Crevasse formation, icefall, and structural snout collapse.", body_style)
+        ],
+        [
+            Paragraph("<font color='#d97706'><b>⚠️ GLOF & LAKE EXPANSION</b></font>", bold_style),
+            Paragraph(f"<b>Lake Status:</b> {info['glof_risk']}<br/><b>Early Warning Arrival Window:</b> {info['early_warning_window']}", body_style)
+        ],
+        [
+            Paragraph("<font color='#16a34a'><b>✅ RECOMMENDED SAFE BASE</b></font>", bold_style),
+            Paragraph(f"<b>Staging Zone:</b> {info['safe_zones']}<br/><b>Protocol:</b> Camp strictly above bedrock levels away from melt outflow paths.", body_style)
+        ]
+    ]
+    
+    rt = Table(risk_table_data, colWidths=[160, 380])
+    rt.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#e2e8f0")),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('BACKGROUND', (0,0), (0,0), colors.HexColor("#fef2f2")),
+        ('BACKGROUND', (0,1), (0,1), colors.HexColor("#fffbeb")),
+        ('BACKGROUND', (0,2), (0,2), colors.HexColor("#f0fdf4")),
+    ]))
+    story.append(rt)
+    story.append(Spacer(1, 6))
+
+    # Environmental Trigger & Public Guidelines
+    story.append(Paragraph("3. ENVIRONMENTAL TRIGGERS & FIELD GUIDELINES", heading_style))
+    adv_text = (
+        f"• <b>Heatwave Melt Trigger:</b> {info['heatwave_trigger']}<br/>"
+        f"• <b>Downstream Impact:</b> Accelerated melting affects {info['downstream_impact']} with river siltation.<br/>"
+        f"• <b>Trekker Guideline:</b> Snout boundaries are structurally unviable. Entry into flagged zones is dangerous without technical ice gear."
+    )
+    story.append(Paragraph(adv_text, body_style))
+    story.append(Spacer(1, 10))
+
+    # Footer
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#94a3b8"), spaceAfter=4))
+    story.append(Paragraph("<i>Auto-Generated Environmental Intelligence Report • SP Vasisth Sustainability Consulting</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# ---------------------------------------------------------
+# 8. DASHBOARD HEADER & METRICS
 # ---------------------------------------------------------
 st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
 st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
@@ -274,7 +446,7 @@ with col4:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 8. MAP VISUALIZATION
+# 9. MAP VISUALIZATION
 # ---------------------------------------------------------
 st.subheader(f"🗺️ Interactive Glacier Ice Overlay ({year_baseline} vs {year_current})")
 
@@ -306,72 +478,97 @@ folium.LayerControl(collapsed=False).add_to(m)
 st_folium(m, width=1300, height=500)
 
 # ---------------------------------------------------------
-# 9. ANALYTICS CHART
+# 10. ANALYTICS CHART & PDF EXPORTER
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📊 Ice Area Retreat Summary Chart")
 
-fig = go.Figure(data=[
-    go.Bar(
-        x=[f"{year_baseline} Baseline", f"{year_current} Current"],
-        y=[area_base, area_curr],
-        marker_color=['#00b4d8', '#ff4d6d'],
-        text=[f"{area_base:.2f} sq km", f"{area_curr:.2f} sq km"],
-        textposition='auto'
+chart_col, pdf_col = st.columns([3, 1])
+
+with chart_col:
+    st.subheader("📊 Ice Area Retreat Summary Chart")
+    fig = go.Figure(data=[
+        go.Bar(
+            x=[f"{year_baseline} Baseline", f"{year_current} Current"],
+            y=[area_base, area_curr],
+            marker_color=['#00b4d8', '#ff4d6d'],
+            text=[f"{area_base:.2f} sq km", f"{area_curr:.2f} sq km"],
+            textposition='auto'
+        )
+    ])
+    fig.update_layout(
+        title=f"Total Surface Ice Coverage Reduction for {selected_glacier_name}",
+        yaxis_title="Area (Square Kilometers)",
+        template="plotly_dark",
+        height=350
     )
-])
+    st.plotly_chart(fig, use_container_width=True)
 
-fig.update_layout(
-    title=f"Total Surface Ice Coverage Reduction for {selected_glacier_name}",
-    yaxis_title="Area (Square Kilometers)",
-    template="plotly_dark",
-    height=350
-)
+with pdf_col:
+    st.subheader("📄 Automated PDF Briefing")
+    st.markdown("Export a clean, single-page **Weekly Environmental Analysis Report** with graphical plot for local distribution and field planning.")
+    
+    pdf_bytes = generate_pdf_report(
+        selected_glacier_name,
+        year_baseline,
+        year_current,
+        area_base,
+        area_curr,
+        area_lost,
+        perc_lost,
+        annual_loss_rate,
+        selected_glacier
+    )
 
-st.plotly_chart(fig, use_container_width=True)
+    file_name = f"{selected_glacier_name.split()[0]}_Weekly_Glacier_Report.pdf"
+
+    st.download_button(
+        label="📥 Download Weekly Report",
+        data=pdf_bytes,
+        file_name=file_name,
+        mime="application/pdf",
+        use_container_width=True
+    )
 
 # ---------------------------------------------------------
-# 10. WEEKLY GLACIER ANALYSIS & RISK BRIEFING (NEW)
+# 11. WEEKLY GLACIER ANALYSIS & RISK BRIEFING
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📋 Weekly Glacier Health & Safety Analysis Report")
+st.subheader("📋 Weekly Glacier Health & Environmental Analysis")
 
 rep_col1, rep_col2, rep_col3 = st.columns(3)
 
 with rep_col1:
     st.markdown(f"""
         <div class="risk-card-high">
-            <h4>🚨 Danger Zones (Avoid Movement)</h4>
+            <h4>🚨 Danger Zones & Structural Risks</h4>
             <p><b>Targeted Area:</b> {selected_glacier['danger_zones']}</p>
-            <p><b>Primary Hazard:</b> Crevasse formation, structural ice collapse, and GLOF (Glacial Lake Outburst Flood) risks due to meltwater accumulation.</p>
+            <p><b>Crevasse Hazard:</b> Rapid snout retreat causes internal structural fractures and dangerous icefalls.</p>
         </div>
     """, unsafe_allow_html=True)
 
 with rep_col2:
     st.markdown(f"""
-        <div class="risk-card-safe">
-            <h4>✅ Recommended Safe Zones</h4>
-            <p><b>Staging Base:</b> {selected_glacier['safe_zones']}</p>
-            <p><b>Safety Protocol:</b> Maintain encampment strictly below structural bedrock levels and away from narrow river paths.</p>
+        <div class="risk-card-moderate">
+            <h4>⚠️ GLOF & Meltwater Lake Expansion</h4>
+            <p><b>Lake Risk Status:</b> {selected_glacier['glof_risk']}</p>
+            <p><b>Early Warning Arrival Window:</b> {selected_glacier['early_warning_window']}</p>
         </div>
     """, unsafe_allow_html=True)
 
 with rep_col3:
     st.markdown(f"""
-        <div class="risk-card-moderate">
-            <h4>🌍 Environmental & Downstream Impact</h4>
-            <p><b>Melt Velocity:</b> ~{selected_glacier['retreat_rate']}</p>
-            <p><b>Impacted Regions:</b> {selected_glacier['downstream_impact']}</p>
-            <p><b>Seasonal Risk:</b> Surge in river water levels and sudden siltation affecting local infrastructure.</p>
+        <div class="risk-card-safe">
+            <h4>✅ Recommended Staging Safe Zones</h4>
+            <p><b>Safe Base:</b> {selected_glacier['safe_zones']}</p>
+            <p><b>Heatwave Trigger:</b> {selected_glacier['heatwave_trigger']}</p>
         </div>
     """, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Detailed Advisory Text
 st.info(f"""
-**📢 Field Safety Advisory for Local Communities & Trekkers:**
-* **Glacier Retreat Trend:** Between **{year_baseline}** and **{year_current}**, {selected_glacier_name} lost **{area_lost:.2f} sq km** of total ice cover (average decline rate of **{annual_loss_rate:.2f} sq km/year**).
-* **Structural Stability:** Rapid retreat accelerates snout fracturing. Trekkers and pilgrims are advised **not to step onto snout ice boundaries** without high-altitude safety gear.
-* **Early Warning:** Continuous monitoring via Sentinel-2 satellite images helps track proglacial lakes that can burst during summer heatwaves.
+**📢 Automated Weekly Field Intelligence Summary:**
+* **Retreat Summary:** Between **{year_baseline}** and **{year_current}**, {selected_glacier_name} experienced a net ice loss of **{area_lost:.2f} sq km** (**-{perc_lost:.1f}%**) at an average velocity of **{annual_loss_rate:.2f} sq km/year**.
+* **Environmental Impact:** Meltwater surge impacts **{selected_glacier['downstream_impact']}**, increasing seasonal river turbidity and flood risk.
+* **Trekker Advisory:** Maintain camp setups strictly in recommended safe staging zones. Snout ice boundaries should be avoided without professional high-altitude ice gear.
 """)
