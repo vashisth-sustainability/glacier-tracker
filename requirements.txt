@@ -1,8 +1,11 @@
 streamlit
 streamlit-folium
 earthengine-api
+geemap
 folium
 plotly
 reportlab
 matplotlib
 pillow
+numpy
+requests
