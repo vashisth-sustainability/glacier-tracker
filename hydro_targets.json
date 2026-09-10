@@ -1,0 +1,22 @@
+{
+  "targets": [
+    {
+      "id": "asset_001",
+      "name": "Tapovan Vishnugad HEP",
+      "river_basin": "Dhauliganga / Alaknanda",
+      "state": "Uttarakhand",
+      "latitude": 30.5283,
+      "longitude": 79.6231,
+      "buffer_km": 20
+    },
+    {
+      "id": "asset_002",
+      "name": "Teesta III HEP",
+      "river_basin": "Teesta",
+      "state": "Sikkim",
+      "latitude": 27.5975,
+      "longitude": 88.6475,
+      "buffer_km": 20
+    }
+  ]
+}
