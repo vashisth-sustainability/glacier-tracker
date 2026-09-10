@@ -1,13 +1,18 @@
 import json
+import io
 import os
 import streamlit as st
+import ee
 import folium
 from streamlit_folium import st_folium
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
-# Modular Helper Imports
-from gee_fetcher import init_ee, get_glacier_analytics
-from report_generator import generate_pdf_report
+# ReportLab Imports for PDF Generation
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # ---------------------------------------------------------
 # 1. PAGE CONFIGURATION & CUSTOM STYLING
@@ -49,7 +54,6 @@ st.markdown("""
         margin-top: 4px;
     }
     .sub-red { color: #FF4D6D !important; }
-    .sub-green { color: #00E676 !important; }
     .sub-cyan { color: #00F0FF !important; }
 
     .risk-card-high {
@@ -79,10 +83,40 @@ st.markdown("""
 # ---------------------------------------------------------
 # 2. EARTH ENGINE INITIALIZATION
 # ---------------------------------------------------------
+@st.cache_resource
+def init_ee():
+    if "GCP_SERVICE_ACCOUNT" in st.secrets:
+        try:
+            secrets_raw = st.secrets["GCP_SERVICE_ACCOUNT"]
+            if isinstance(secrets_raw, str):
+                service_account_info = json.loads(secrets_raw)
+            else:
+                service_account_info = dict(secrets_raw)
+
+            if "private_key" in service_account_info:
+                service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
+            credentials = ee.ServiceAccountCredentials(
+                service_account_info["client_email"],
+                key_data=json.dumps(service_account_info)
+            )
+            project_id = service_account_info.get("project_id", "glacier-tracker")
+            ee.Initialize(credentials=credentials, project=project_id)
+            return
+        except Exception as e:
+            st.error(f"❌ Authentication with Earth Engine failed: {e}")
+            st.stop()
+
+    try:
+        ee.Initialize()
+    except Exception:
+        ee.Authenticate()
+        ee.Initialize()
+
 init_ee()
 
 # ---------------------------------------------------------
-# 3. DATA LOADERS & DATABASES
+# 3. DATABASES
 # ---------------------------------------------------------
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
@@ -167,7 +201,158 @@ def load_hydro_targets():
     ]
 
 # ---------------------------------------------------------
-# 4. SIDEBAR & MODE SELECTOR
+# 4. GEE & REPORT HELPER FUNCTIONS
+# ---------------------------------------------------------
+def get_glacier_analytics(lat, lon, year):
+    roi = ee.Geometry.Point([lon, lat]).buffer(8000)
+    start_date = f"{year}-05-01"
+    end_date = f"{year}-09-30"
+    
+    s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+          .filterBounds(roi)
+          .filterDate(start_date, end_date)
+          .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15))
+          .median())
+    
+    ndsi = s2.normalizedDifference(['B3', 'B11']).rename('NDSI')
+    snow_mask = ndsi.gt(0.45)
+    
+    area_image = snow_mask.multiply(ee.Image.pixelArea())
+    stats = area_image.reduceRegion(
+        reducer=ee.Reducer.sum(),
+        geometry=roi,
+        scale=10,
+        maxPixels=1e9
+    )
+    
+    raw_val = stats.get('NDSI')
+    area_sqkm = ee.Number(ee.Algorithms.If(raw_val, raw_val, 0)).divide(1e6).getInfo()
+    return snow_mask, area_sqkm, roi
+
+def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
+    plt.style.use('ggplot')
+    fig, ax = plt.subplots(figsize=(6, 2.8), dpi=200)
+    
+    bars = ax.bar(
+        [f'Baseline ({b_yr})', f'Current ({c_yr})'], 
+        [area_b, area_c], 
+        color=['#0284c7', '#dc2626'],
+        width=0.45
+    )
+    
+    ax.set_ylabel('Ice Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
+    ax.set_title('Glacier Coverage Reduction Analysis', fontsize=10, fontweight='bold', color='#0f172a', pad=10)
+    ax.tick_params(axis='both', which='major', labelsize=8.5)
+    ax.set_ylim(0, max(area_b, area_c) * 1.25 if max(area_b, area_c) > 0 else 10)
+    
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width()/2.0, 
+            yval + (max(area_b, area_c) * 0.03 if max(area_b, area_c) > 0 else 0.2), 
+            f'{yval:.2f} sq km', 
+            ha='center', va='bottom', fontsize=8.5, fontweight='bold', color='#0f172a'
+        )
+
+    plt.tight_layout()
+    img_buf = io.BytesIO()
+    plt.savefig(img_buf, format='png', dpi=200, bbox_inches='tight')
+    plt.close(fig)
+    img_buf.seek(0)
+    return img_buf
+
+def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, area_l, perc_l, loss_rate, info):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+
+    COLOR_PRIMARY = colors.HexColor("#0f172a")
+    COLOR_ACCENT = colors.HexColor("#0284c7")
+
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=COLOR_PRIMARY, spaceAfter=2, fontName="Helvetica-Bold")
+    subtitle_style = ParagraphStyle('DocSub', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor("#475569"), spaceAfter=8)
+    heading_style = ParagraphStyle('SecHead', parent=styles['Heading2'], fontSize=10.5, textColor=COLOR_ACCENT, spaceBefore=6, spaceAfter=4, fontName="Helvetica-Bold")
+    body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontSize=8, leading=11, textColor=colors.HexColor("#1e293b"))
+    bold_style = ParagraphStyle('BoldCustom', parent=body_style, fontName="Helvetica-Bold")
+
+    story = [
+        Paragraph("HIMALAYAN GLACIER SATELLITE ANALYSIS REPORT", title_style),
+        Paragraph(f"Target Location: <b>{glacier_name}</b> | Registry ID: {info['custom_id']} | Basin: {info['basin']}", subtitle_style),
+        HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8),
+        Paragraph("1. SATELLITE RETREAT METRICS & GRAPHICAL ANALYSIS", heading_style)
+    ]
+    
+    table_data = [
+        [Paragraph("<b>Metric Parameter</b>", body_style), Paragraph("<b>Observed Value</b>", body_style)],
+        [Paragraph(f"Baseline Ice Coverage ({baseline_yr})", body_style), Paragraph(f"{area_b:.2f} sq km", body_style)],
+        [Paragraph(f"Current Ice Coverage ({current_yr})", body_style), Paragraph(f"{area_c:.2f} sq km", body_style)],
+        [Paragraph("Net Ice Coverage Loss", body_style), Paragraph(f"<font color='#dc2626'><b>-{area_l:.2f} sq km (-{perc_l:.1f}%)</b></font>", body_style)],
+        [Paragraph("Annual Loss Velocity", body_style), Paragraph(f"<b>{loss_rate:.2f} sq km / year</b>", body_style)]
+    ]
+    t = Table(table_data, colWidths=[180, 120])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+
+    chart_img_buf = generate_pdf_chart(area_b, area_c, baseline_yr, current_yr)
+    rl_chart = RLImage(chart_img_buf, width=220, height=105)
+
+    layout_table = Table([[t, rl_chart]], colWidths=[310, 230])
+    layout_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+    story.append(layout_table)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("2. HAZARD MAP & CRITICAL DANGER ZONES", heading_style))
+    
+    risk_table_data = [
+        [
+            Paragraph("<font color='#dc2626'><b>🚨 HIGH RISK DANGER ZONE</b></font>", bold_style),
+            Paragraph(f"<b>Area:</b> {info['danger_zones']}<br/><b>Threat:</b> Crevasse formation, icefall, and structural snout collapse.", body_style)
+        ],
+        [
+            Paragraph("<font color='#d97706'><b>⚠️ GLOF & LAKE EXPANSION</b></font>", bold_style),
+            Paragraph(f"<b>Lake Status:</b> {info['glof_risk']}<br/><b>Early Warning Arrival Window:</b> {info['early_warning_window']}", body_style)
+        ],
+        [
+            Paragraph("<font color='#16a34a'><b>✅ RECOMMENDED SAFE BASE</b></font>", bold_style),
+            Paragraph(f"<b>Staging Zone:</b> {info['safe_zones']}<br/><b>Protocol:</b> Camp strictly above bedrock levels away from melt outflow paths.", body_style)
+        ]
+    ]
+    
+    rt = Table(risk_table_data, colWidths=[160, 380])
+    rt.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#e2e8f0")),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('BACKGROUND', (0,0), (0,0), colors.HexColor("#fef2f2")),
+        ('BACKGROUND', (0,1), (0,1), colors.HexColor("#fffbeb")),
+        ('BACKGROUND', (0,2), (0,2), colors.HexColor("#f0fdf4")),
+    ]))
+    story.append(rt)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("3. ENVIRONMENTAL TRIGGERS & FIELD GUIDELINES", heading_style))
+    adv_text = (
+        f"• <b>Heatwave Melt Trigger:</b> {info['heatwave_trigger']}<br/>"
+        f"• <b>Downstream Impact:</b> Accelerated melting affects {info['downstream_impact']} with river siltation.<br/>"
+        f"• <b>Field Advisory:</b> Snout boundaries are structurally unstable. Entry into flagged zones is strictly prohibited without technical ice gear."
+    )
+    story.append(Paragraph(adv_text, body_style))
+    story.append(Spacer(1, 10))
+
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#94a3b8"), spaceAfter=4))
+    story.append(Paragraph("<i>Auto-Generated Environmental Intelligence Report • Proprietary Satellite Analytics Platform</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# ---------------------------------------------------------
+# 5. SIDEBAR & MODE SELECTOR
 # ---------------------------------------------------------
 st.sidebar.title("🛰️ Sentinel Intelligence Hub")
 st.sidebar.markdown("---")
@@ -267,7 +452,6 @@ if app_mode == "🧊 Glacier Retreat Tracker":
     viz_params = {'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']}
 
     try:
-        import ee
         map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
         folium.TileLayer(
             tiles=map_id_base['tile_fetcher'].url_format,
@@ -278,7 +462,6 @@ if app_mode == "🧊 Glacier Retreat Tracker":
         st.warning(f"Could not load {year_baseline} layer overlay: {e}")
 
     try:
-        import ee
         map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
         folium.TileLayer(
             tiles=map_id_curr['tile_fetcher'].url_format,
