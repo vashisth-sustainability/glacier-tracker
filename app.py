@@ -351,6 +351,75 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     buffer.seek(0)
     return buffer.getvalue()
 
+def generate_individual_site_pdf(site_data):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+
+    COLOR_PRIMARY = colors.HexColor("#0f172a")
+    COLOR_ACCENT = colors.HexColor("#0284c7")
+
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=14, textColor=COLOR_PRIMARY, spaceAfter=2, fontName="Helvetica-Bold")
+    subtitle_style = ParagraphStyle('DocSub', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor("#475569"), spaceAfter=8)
+    heading_style = ParagraphStyle('SecHead', parent=styles['Heading2'], fontSize=10, textColor=COLOR_ACCENT, spaceBefore=6, spaceAfter=4, fontName="Helvetica-Bold")
+    body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontSize=8, leading=11, textColor=colors.HexColor("#1e293b"))
+
+    site_name = site_data.get("name", site_data.get("target_name", site_data.get("plant_name", "Site Asset")))
+    client_name = site_data.get("state", "Private Client")
+    asset_id = site_data.get("id", site_data.get("asset_id", site_data.get("target_id", "ASSET-001")))
+    river_basin = site_data.get("river_basin", site_data.get("river", site_data.get("river_name", "N/A")))
+    capacity = site_data.get("capacity_mw", site_data.get("capacity", "N/A"))
+    risk_level = str(site_data.get("risk_status", site_data.get("risk", site_data.get("risk_level", "MODERATE")))).upper()
+    lat = site_data.get("latitude", site_data.get("lat", 0.0))
+    lon = site_data.get("longitude", site_data.get("lon", 0.0))
+
+    story = [
+        Paragraph("INDIVIDUAL SITE ENVIRONMENTAL ASSESSMENT REPORT", title_style),
+        Paragraph(f"Client / Owner: <b>{client_name}</b> | Site Name: <b>{site_name}</b> | Asset ID: <b>{asset_id}</b>", subtitle_style),
+        HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8),
+        
+        Paragraph("1. SITE PROFILE & TECHNICAL METRICS", heading_style)
+    ]
+    
+    site_table_data = [
+        [Paragraph("<b>Parameter</b>", body_style), Paragraph("<b>Site Details</b>", body_style)],
+        [Paragraph("Asset Name", body_style), Paragraph(f"<b>{site_name}</b>", body_style)],
+        [Paragraph("Client / State Authority", body_style), Paragraph(f"{client_name}", body_style)],
+        [Paragraph("Geographical Coordinates", body_style), Paragraph(f"Lat: {lat}, Lon: {lon}", body_style)],
+        [Paragraph("River Basin", body_style), Paragraph(f"{river_basin}", body_style)],
+        [Paragraph("Installed Capacity", body_style), Paragraph(f"{capacity} MW", body_style)],
+        [Paragraph("GLOF / Hazard Risk Status", body_style), Paragraph(f"<b>{risk_level}</b>", body_style)]
+    ]
+    
+    t = Table(site_table_data, colWidths=[200, 320])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("2. INDIVIDUAL HAZARD ASSESSMENT & RECOMMENDATIONS", heading_style))
+    
+    site_recommendation = (
+        f"This report is specifically issued for <b>{site_name}</b>. "
+        f"Based on spatial analytics at ({lat}, {lon}), the immediate buffer zone exhibits a risk level of <b>{risk_level}</b>.<br/><br/>"
+        "<b>Action Plan:</b><br/>"
+        "• Establish dedicated telemetry monitoring upstream of the catchment area.<br/>"
+        "• Deploy client-specific Early Warning Systems (EWS) linked with emergency discharge protocols."
+    )
+    story.append(Paragraph(site_recommendation, body_style))
+    story.append(Spacer(1, 12))
+
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#94a3b8"), spaceAfter=4))
+    story.append(Paragraph(f"<i>Confidential Report Prepared for {client_name} • Proprietary Asset Intelligence</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 # ---------------------------------------------------------
 # 5. SIDEBAR & MODE SELECTOR
 # ---------------------------------------------------------
@@ -649,3 +718,24 @@ else:
         st.markdown("---")
         st.subheader("📊 Dynamic Hydro Targets Summary Table")
         st.dataframe(hydro_targets, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📄 Download Individual Client / Site PDF Reports")
+        st.caption("Har site/client ki alag customized assessment report download karein:")
+
+        for site in hydro_targets:
+            s_name = site.get("name", site.get("target_name", site.get("plant_name", "Site")))
+            c_name = site.get("state", "Client")
+            
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                st.write(f"📍 **{s_name}** ({c_name})")
+            with col_b:
+                pdf_data = generate_individual_site_pdf(site)
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=pdf_data,
+                    file_name=f"Report_{s_name.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_{site.get('id', site.get('asset_id', s_name))}"
+                )
