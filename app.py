@@ -1,5 +1,6 @@
 import json
 import io
+import os
 import datetime
 import streamlit as st
 import ee
@@ -20,7 +21,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 # 1. PAGE CONFIGURATION & CUSTOM STYLING
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Himalayan Glacier Satellite Monitor",
+    page_title="Himalayan Glacier & Hydro Infrastructure Monitor",
     page_icon="🧊",
     layout="wide"
 )
@@ -84,24 +85,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. PASSWORD PROTECTION SYSTEM (DISABLED FOR DIRECT ACCESS)
-# ---------------------------------------------------------
-def check_password():
-    # Direct access enabled - bypasses password screen
-    return True
-
-if not check_password():
-    st.stop()
-
-# ---------------------------------------------------------
-# 3. EARTH ENGINE INITIALIZATION
+# 2. EARTH ENGINE INITIALIZATION
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
     if "GCP_SERVICE_ACCOUNT" in st.secrets:
         try:
             secrets_raw = st.secrets["GCP_SERVICE_ACCOUNT"]
-            
             if isinstance(secrets_raw, str):
                 service_account_info = json.loads(secrets_raw)
             else:
@@ -114,7 +104,6 @@ def init_ee():
                 service_account_info["client_email"],
                 key_data=json.dumps(service_account_info)
             )
-            
             project_id = service_account_info.get("project_id", "glacier-tracker")
             ee.Initialize(credentials=credentials, project=project_id)
             return
@@ -131,7 +120,7 @@ def init_ee():
 init_ee()
 
 # ---------------------------------------------------------
-# 4. CUSTOM GLACIER DATABASE (PROPRIETARY STRUCTURE)
+# 3. DATA LOADERS & DATABASES
 # ---------------------------------------------------------
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
@@ -192,28 +181,40 @@ GLACIERS = {
     }
 }
 
+@st.cache_data
+def load_hydro_targets():
+    file_path = "hydro_targets.json"
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f).get("targets", [])
+        except Exception:
+            pass
+    # Default Fallback targets if JSON is missing or invalid
+    return [
+        {"id": "HT-01", "name": "Tapovan Vishnugad HEP", "river": "Dhauliganga", "capacity_mw": 520, "lat": 30.528, "lon": 79.620, "risk_status": "HIGH"},
+        {"id": "HT-02", "name": "Tehri Hydro Complex", "river": "Bhagirathi", "capacity_mw": 2400, "lat": 30.378, "lon": 78.480, "risk_status": "MODERATE"},
+        {"id": "HT-03", "name": "Karcham Wangtoo HEP", "river": "Sutlej", "capacity_mw": 1000, "lat": 31.540, "lon": 78.180, "risk_status": "ELEVATED"},
+        {"id": "HT-04", "name": "Nathpa Jhakri HEP", "river": "Sutlej", "capacity_mw": 1500, "lat": 31.560, "lon": 77.980, "risk_status": "MODERATE"},
+        {"id": "HT-05", "name": "Vishnuprayag HEP", "river": "Alaknanda", "capacity_mw": 400, "lat": 30.560, "lon": 79.570, "risk_status": "HIGH"},
+        {"id": "HT-06", "name": "Srinagar HEP", "river": "Alaknanda", "capacity_mw": 330, "lat": 30.220, "lon": 78.780, "risk_status": "SAFE"},
+        {"id": "HT-07", "name": "Subansiri Lower HEP", "river": "Subansiri", "capacity_mw": 2000, "lat": 27.550, "lon": 94.260, "risk_status": "ELEVATED"}
+    ]
+
 # ---------------------------------------------------------
-# 5. SIDEBAR CONTROLS
+# 4. SIDEBAR & MODE SELECTOR
 # ---------------------------------------------------------
-st.sidebar.title("🧊 Glacier Tracker AI")
+st.sidebar.title("🛰️ Sentinel Intelligence Hub")
 st.sidebar.markdown("---")
 
-selected_basin = st.sidebar.selectbox("Filter Regional Basin", ["All Basins", "Ganga Basin", "Indus Basin"])
-
-filtered_glaciers = [
-    g for g, data in GLACIERS.items()
-    if selected_basin == "All Basins" or data["basin"] == selected_basin
-]
-
-selected_glacier_name = st.sidebar.selectbox("Select Target Glacier", filtered_glaciers)
-selected_glacier = GLACIERS[selected_glacier_name]
-
-st.sidebar.markdown("### 🗓️ Comparison Timeline")
-year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
-year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
+app_mode = st.sidebar.radio(
+    "Select Operating Module",
+    ["🧊 Glacier Retreat Tracker", "🌊 Hydro Power & GLOF Monitoring"]
+)
+st.sidebar.markdown("---")
 
 # ---------------------------------------------------------
-# 6. CORE ANALYTICS ENGINE & GRAPH PLOTTER
+# 5. CORE ANALYTICS ENGINE & HELPER FUNCTIONS
 # ---------------------------------------------------------
 def get_glacier_analytics(lat, lon, year):
     roi = ee.Geometry.Point([lon, lat]).buffer(8000)
@@ -277,9 +278,6 @@ def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     img_buf.seek(0)
     return img_buf
 
-# ---------------------------------------------------------
-# 7. ENHANCED AUTO-GENERATED PDF REPORT GENERATOR
-# ---------------------------------------------------------
 def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, area_l, perc_l, loss_rate, info):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -314,12 +312,10 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
 
     story = []
 
-    # Title Banner
     story.append(Paragraph("HIMALAYAN GLACIER SATELLITE ANALYSIS REPORT", title_style))
     story.append(Paragraph(f"Target Location: <b>{glacier_name}</b> | Registry ID: {info['custom_id']} | Basin: {info['basin']}", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8))
 
-    # Metrics Summary & Visual Plot
     story.append(Paragraph("1. SATELLITE RETREAT METRICS & GRAPHICAL ANALYSIS", heading_style))
     
     table_data = [
@@ -337,7 +333,6 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
 
-    # Add Visual Chart Plot
     chart_img_buf = generate_pdf_chart(area_b, area_c, baseline_yr, current_yr)
     rl_chart = RLImage(chart_img_buf, width=220, height=105)
 
@@ -346,7 +341,6 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     story.append(layout_table)
     story.append(Spacer(1, 6))
 
-    # Danger Zones & GLOF Hazard Status
     story.append(Paragraph("2. HAZARD MAP & CRITICAL DANGER ZONES", heading_style))
     
     risk_table_data = [
@@ -377,7 +371,6 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     story.append(rt)
     story.append(Spacer(1, 6))
 
-    # Environmental Trigger & Field Guidelines
     story.append(Paragraph("3. ENVIRONMENTAL TRIGGERS & FIELD GUIDELINES", heading_style))
     adv_text = (
         f"• <b>Heatwave Melt Trigger:</b> {info['heatwave_trigger']}<br/>"
@@ -387,7 +380,6 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     story.append(Paragraph(adv_text, body_style))
     story.append(Spacer(1, 10))
 
-    # Footer
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#94a3b8"), spaceAfter=4))
     story.append(Paragraph("<i>Auto-Generated Environmental Intelligence Report • Proprietary Satellite Analytics Platform</i>", ParagraphStyle('Foot', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor("#64748b"))))
 
@@ -395,203 +387,265 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     buffer.seek(0)
     return buffer.getvalue()
 
-# ---------------------------------------------------------
-# 8. DASHBOARD HEADER, METADATA & METRICS
-# ---------------------------------------------------------
-st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
-st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
+# =========================================================
+# MODULE 1: GLACIER RETREAT TRACKER
+# =========================================================
+if app_mode == "🧊 Glacier Retreat Tracker":
+    selected_basin = st.sidebar.selectbox("Filter Regional Basin", ["All Basins", "Ganga Basin", "Indus Basin"])
 
-# Custom Profile Card
-st.markdown("### 📍 Glacier Overview & Metadata")
-m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-m_col1.metric("Registry ID", selected_glacier["custom_id"])
-m_col2.metric("Primary Basin", selected_glacier["basin"])
-m_col3.metric("Mean Elevation", selected_glacier["mean_elevation"])
-m_col4.metric("Avg Annual Retreat", selected_glacier["retreat_rate"])
+    filtered_glaciers = [
+        g for g, data in GLACIERS.items()
+        if selected_basin == "All Basins" or data["basin"] == selected_basin
+    ]
 
-st.markdown("---")
+    selected_glacier_name = st.sidebar.selectbox("Select Target Glacier", filtered_glaciers)
+    selected_glacier = GLACIERS[selected_glacier_name]
 
-with st.spinner("Fetching satellite imagery from European Space Agency (ESA)..."):
-    mask_base, area_base, roi = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_baseline)
-    mask_curr, area_curr, _ = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_current)
+    st.sidebar.markdown("### 🗓️ Comparison Timeline")
+    year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
+    year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
-area_lost = area_base - area_curr
-perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
-year_span = max(1, year_current - year_baseline)
-annual_loss_rate = area_lost / year_span
+    st.title("🛰️ Real-Time Himalayan Glacier Retreat Tracker")
+    st.caption(f"Live ESA Sentinel-2 Satellite Analytics Engine • Location: {selected_glacier_name}")
 
-col1, col2, col3, col4 = st.columns(4)
+    st.markdown("### 📍 Glacier Overview & Metadata")
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    m_col1.metric("Registry ID", selected_glacier["custom_id"])
+    m_col2.metric("Primary Basin", selected_glacier["basin"])
+    m_col3.metric("Mean Elevation", selected_glacier["mean_elevation"])
+    m_col4.metric("Avg Annual Retreat", selected_glacier["retreat_rate"])
 
-with col1:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Glacier Area ({year_baseline})</div>
-            <div class="metric-value">{area_base:.2f} <span style="font-size: 16px;">sq km</span></div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
 
-with col2:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Glacier Area ({year_current})</div>
-            <div class="metric-value">{area_curr:.2f} <span style="font-size: 16px;">sq km</span></div>
-        </div>
-    """, unsafe_allow_html=True)
+    with st.spinner("Fetching satellite imagery from European Space Agency (ESA)..."):
+        mask_base, area_base, roi = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_baseline)
+        mask_curr, area_curr, _ = get_glacier_analytics(selected_glacier["lat"], selected_glacier["lon"], year_current)
 
-with col3:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Ice Area Retreat</div>
-            <div class="metric-value">{area_lost:.2f} <span style="font-size: 16px;">sq km</span></div>
-            <div class="metric-sub sub-red">▼ -{perc_lost:.1f}% ({year_span} yrs)</div>
-        </div>
-    """, unsafe_allow_html=True)
+    area_lost = area_base - area_curr
+    perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
+    year_span = max(1, year_current - year_baseline)
+    annual_loss_rate = area_lost / year_span
 
-with col4:
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Avg Loss Velocity</div>
-            <div class="metric-value">{annual_loss_rate:.2f} <span style="font-size: 16px;">sq km/yr</span></div>
-            <div class="metric-sub sub-cyan">● Satellite Derived</div>
-        </div>
-    """, unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
 
-st.markdown("---")
+    with col1:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Glacier Area ({year_baseline})</div>
+                <div class="metric-value">{area_base:.2f} <span style="font-size: 16px;">sq km</span></div>
+            </div>
+        """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 9. MAP VISUALIZATION
-# ---------------------------------------------------------
-st.subheader(f"🗺️ Interactive Glacier Ice Overlay ({year_baseline} vs {year_current})")
+    with col2:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Glacier Area ({year_current})</div>
+                <div class="metric-value">{area_curr:.2f} <span style="font-size: 16px;">sq km</span></div>
+            </div>
+        """, unsafe_allow_html=True)
 
-m = folium.Map(
-    location=[selected_glacier["lat"], selected_glacier["lon"]],
-    zoom_start=selected_glacier["zoom"],
-    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attr="Esri World Imagery"
-)
+    with col3:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Ice Area Retreat</div>
+                <div class="metric-value">{area_lost:.2f} <span style="font-size: 16px;">sq km</span></div>
+                <div class="metric-sub sub-red">▼ -{perc_lost:.1f}% ({year_span} yrs)</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-viz_params = {'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']}
+    with col4:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Avg Loss Velocity</div>
+                <div class="metric-value">{annual_loss_rate:.2f} <span style="font-size: 16px;">sq km/yr</span></div>
+                <div class="metric-sub sub-cyan">● Satellite Derived</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-try:
-    map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
-    folium.TileLayer(
-        tiles=map_id_base['tile_fetcher'].url_format,
-        attr='Google Earth Engine',
-        name=f'Glacier Ice ({year_baseline})'
-    ).add_to(m)
-except Exception as e:
-    st.warning(f"Could not load {year_baseline} layer overlay: {e}")
+    st.markdown("---")
 
-try:
-    map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
-    folium.TileLayer(
-        tiles=map_id_curr['tile_fetcher'].url_format,
-        attr='Google Earth Engine',
-        name=f'Glacier Ice ({year_current})'
-    ).add_to(m)
-except Exception as e:
-    st.warning(f"Could not load {year_current} layer overlay: {e}")
+    st.subheader(f"🗺️ Interactive Glacier Ice Overlay ({year_baseline} vs {year_current})")
 
-folium.LayerControl(collapsed=False).add_to(m)
-
-st_folium(m, width=1300, height=500)
-
-# ---------------------------------------------------------
-# 10. MULTI-DECADE HISTORICAL TREND & PDF EXPORTER
-# ---------------------------------------------------------
-st.markdown("---")
-
-chart_col, pdf_col = st.columns([3, 1])
-
-with chart_col:
-    st.subheader("📈 Multi-Decade Historical Trend Chart (1990–2026)")
-    
-    h_years = list(selected_glacier["historical_data"].keys())
-    h_areas = list(selected_glacier["historical_data"].values())
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=h_years, y=h_areas,
-        mode='lines+markers',
-        name='Surface Area (sq km)',
-        line=dict(color='#00CC96', width=3),
-        marker=dict(size=8, color='#636EFA')
-    ))
-    fig.update_layout(
-        title=f"35-Year Surface Ice Reduction Curve: {selected_glacier_name}",
-        xaxis_title="Year",
-        yaxis_title="Area (Square Kilometers)",
-        template="plotly_dark",
-        height=350
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-with pdf_col:
-    st.subheader("📄 Automated PDF Briefing")
-    st.markdown("Export a clean, single-page **Weekly Environmental Analysis Report** with graphical plot for local distribution and field planning.")
-    
-    pdf_bytes = generate_pdf_report(
-        selected_glacier_name,
-        year_baseline,
-        year_current,
-        area_base,
-        area_curr,
-        area_lost,
-        perc_lost,
-        annual_loss_rate,
-        selected_glacier
+    m = folium.Map(
+        location=[selected_glacier["lat"], selected_glacier["lon"]],
+        zoom_start=selected_glacier["zoom"],
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery"
     )
 
-    file_name = f"{selected_glacier_name.split()[0]}_Weekly_Glacier_Report.pdf"
+    viz_params = {'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']}
 
-    st.download_button(
-        label="📥 Download Weekly Report",
-        data=pdf_bytes,
-        file_name=file_name,
-        mime="application/pdf",
-        use_container_width=True
+    try:
+        map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
+        folium.TileLayer(
+            tiles=map_id_base['tile_fetcher'].url_format,
+            attr='Google Earth Engine',
+            name=f'Glacier Ice ({year_baseline})'
+        ).add_to(m)
+    except Exception as e:
+        st.warning(f"Could not load {year_baseline} layer overlay: {e}")
+
+    try:
+        map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
+        folium.TileLayer(
+            tiles=map_id_curr['tile_fetcher'].url_format,
+            attr='Google Earth Engine',
+            name=f'Glacier Ice ({year_current})'
+        ).add_to(m)
+    except Exception as e:
+        st.warning(f"Could not load {year_current} layer overlay: {e}")
+
+    folium.LayerControl(collapsed=False).add_to(m)
+    st_folium(m, width=1300, height=500)
+
+    st.markdown("---")
+
+    chart_col, pdf_col = st.columns([3, 1])
+
+    with chart_col:
+        st.subheader("📈 Multi-Decade Historical Trend Chart (1990–2026)")
+        
+        h_years = list(selected_glacier["historical_data"].keys())
+        h_areas = list(selected_glacier["historical_data"].values())
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=h_years, y=h_areas,
+            mode='lines+markers',
+            name='Surface Area (sq km)',
+            line=dict(color='#00CC96', width=3),
+            marker=dict(size=8, color='#636EFA')
+        ))
+        fig.update_layout(
+            title=f"35-Year Surface Ice Reduction Curve: {selected_glacier_name}",
+            xaxis_title="Year",
+            yaxis_title="Area (Square Kilometers)",
+            template="plotly_dark",
+            height=350
+        )
+        st.plotly_chart(fig, width="stretch")
+
+    with pdf_col:
+        st.subheader("📄 Automated PDF Briefing")
+        st.markdown("Export a clean, single-page **Weekly Environmental Analysis Report** with graphical plot.")
+        
+        pdf_bytes = generate_pdf_report(
+            selected_glacier_name,
+            year_baseline,
+            year_current,
+            area_base,
+            area_curr,
+            area_lost,
+            perc_lost,
+            annual_loss_rate,
+            selected_glacier
+        )
+
+        file_name = f"{selected_glacier_name.split()[0]}_Weekly_Glacier_Report.pdf"
+
+        st.download_button(
+            label="📥 Download Weekly Report",
+            data=pdf_bytes,
+            file_name=file_name,
+            mime="application/pdf",
+            width="stretch"
+        )
+
+    st.markdown("---")
+    st.subheader("📋 Weekly Glacier Health & Environmental Analysis")
+
+    rep_col1, rep_col2, rep_col3 = st.columns(3)
+
+    with rep_col1:
+        st.markdown(f"""
+            <div class="risk-card-high">
+                <h4>🚨 Danger Zones & Structural Risks</h4>
+                <p><b>Targeted Area:</b> {selected_glacier['danger_zones']}</p>
+                <p><b>Crevasse Hazard:</b> Rapid snout retreat causes internal structural fractures and dangerous icefalls.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with rep_col2:
+        st.markdown(f"""
+            <div class="risk-card-moderate">
+                <h4>⚠️ GLOF & Meltwater Lake Expansion</h4>
+                <p><b>Lake Risk Status:</b> {selected_glacier['glof_risk']}</p>
+                <p><b>Early Warning Arrival Window:</b> {selected_glacier['early_warning_window']}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with rep_col3:
+        st.markdown(f"""
+            <div class="risk-card-safe">
+                <h4>✅ Recommended Staging Safe Zones</h4>
+                <p><b>Safe Base:</b> {selected_glacier['safe_zones']}</p>
+                <p><b>Heatwave Trigger:</b> {selected_glacier['heatwave_trigger']}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.info(f"""
+    **📢 Automated Weekly Field Intelligence Summary:**
+    * **Retreat Summary:** Between **{year_baseline}** and **{year_current}**, {selected_glacier_name} experienced a net ice loss of **{area_lost:.2f} sq km** (**-{perc_lost:.1f}%**) at an average velocity of **{annual_loss_rate:.2f} sq km/year**.
+    * **Environmental Impact:** Meltwater surge impacts **{selected_glacier['downstream_impact']}**, increasing seasonal river turbidity and flood risk.
+    * **Field Advisory:** Maintain camp setups strictly in recommended safe staging zones. Snout ice boundaries should be avoided without professional high-altitude ice gear.
+    """)
+
+# =========================================================
+# MODULE 2: HYDRO POWER & GLOF MONITORING
+# =========================================================
+else:
+    st.title("⚡ Hydroelectric Power Infrastructure & GLOF Risk Monitor")
+    st.caption("Integrated Monitoring Pipeline • Dynamic Target Asset Analysis (`hydro_targets.json`)")
+
+    hydro_targets = load_hydro_targets()
+
+    target_names = [f"{t['name']} ({t['river']} River)" for t in hydro_targets]
+    selected_target_idx = st.sidebar.selectbox("Select Hydro Infrastructure Target", range(len(target_names)), format_func=lambda x: target_names[x])
+    target = hydro_targets[selected_target_idx]
+
+    st.markdown("### ⚡ Infrastructure Profile")
+    h_col1, h_col2, h_col3, h_col4 = st.columns(4)
+    h_col1.metric("Asset ID", target.get("id", "N/A"))
+    h_col2.metric("Target Plant", target.get("name", "N/A"))
+    h_col3.metric("River System", target.get("river", "N/A"))
+    h_col4.metric("Capacity (MW)", f"{target.get('capacity_mw', 'N/A')} MW")
+
+    st.markdown("---")
+
+    # Interactive Map Centered on Hydro Target
+    st.subheader(f"🗺️ Asset Spatial Monitoring Map: {target.get('name')}")
+    
+    hm = folium.Map(
+        location=[target["lat"], target["lon"]],
+        zoom_start=11,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery"
     )
 
-# ---------------------------------------------------------
-# 11. WEEKLY GLACIER ANALYSIS & RISK BRIEFING
-# ---------------------------------------------------------
-st.markdown("---")
-st.subheader("📋 Weekly Glacier Health & Environmental Analysis")
+    # Color mapping for risk level
+    risk_color = "red" if target.get("risk_status") == "HIGH" else ("orange" if target.get("risk_status") in ["MODERATE", "ELEVATED"] else "green")
+    
+    folium.Marker(
+        location=[target["lat"], target["lon"]],
+        popup=f"<b>{target['name']}</b><br>Capacity: {target.get('capacity_mw')} MW<br>Risk Status: {target.get('risk_status')}",
+        tooltip=target["name"],
+        icon=folium.Icon(color=risk_color, icon="bolt", prefix="fa")
+    ).add_to(hm)
 
-rep_col1, rep_col2, rep_col3 = st.columns(3)
+    # Circle buffer showing 10km warning radius
+    folium.Circle(
+        location=[target["lat"], target["lon"]],
+        radius=10000,
+        color=risk_color,
+        fill=True,
+        fill_opacity=0.15,
+        popup="10km GLOF Alert Buffer"
+    ).add_to(hm)
 
-with rep_col1:
-    st.markdown(f"""
-        <div class="risk-card-high">
-            <h4>🚨 Danger Zones & Structural Risks</h4>
-            <p><b>Targeted Area:</b> {selected_glacier['danger_zones']}</p>
-            <p><b>Crevasse Hazard:</b> Rapid snout retreat causes internal structural fractures and dangerous icefalls.</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st_folium(hm, width=1300, height=450)
 
-with rep_col2:
-    st.markdown(f"""
-        <div class="risk-card-moderate">
-            <h4>⚠️ GLOF & Meltwater Lake Expansion</h4>
-            <p><b>Lake Risk Status:</b> {selected_glacier['glof_risk']}</p>
-            <p><b>Early Warning Arrival Window:</b> {selected_glacier['early_warning_window']}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with rep_col3:
-    st.markdown(f"""
-        <div class="risk-card-safe">
-            <h4>✅ Recommended Staging Safe Zones</h4>
-            <p><b>Safe Base:</b> {selected_glacier['safe_zones']}</p>
-            <p><b>Heatwave Trigger:</b> {selected_glacier['heatwave_trigger']}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-st.info(f"""
-**📢 Automated Weekly Field Intelligence Summary:**
-* **Retreat Summary:** Between **{year_baseline}** and **{year_current}**, {selected_glacier_name} experienced a net ice loss of **{area_lost:.2f} sq km** (**-{perc_lost:.1f}%**) at an average velocity of **{annual_loss_rate:.2f} sq km/year**.
-* **Environmental Impact:** Meltwater surge impacts **{selected_glacier['downstream_impact']}**, increasing seasonal river turbidity and flood risk.
-* **Field Advisory:** Maintain camp setups strictly in recommended safe staging zones. Snout ice boundaries should be avoided without professional high-altitude ice gear.
-""")
+    st.markdown("---")
+    st.subheader("📊 Dynamic Hydro Targets Summary Table")
+    st.dataframe(hydro_targets, width="stretch")
