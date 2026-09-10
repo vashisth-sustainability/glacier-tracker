@@ -84,33 +84,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. PASSWORD PROTECTION SYSTEM (WITH ADMIN URL BYPASS)
+# 2. PASSWORD PROTECTION SYSTEM (DISABLED FOR DIRECT ACCESS)
 # ---------------------------------------------------------
 def check_password():
-    query_params = st.query_params
-    if query_params.get("key") == "swastik":
-        return True
-
-    def password_entered():
-        if st.session_state["password"] == st.secrets.get("APP_PASSWORD", ""):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.markdown("## 🔒 Access Restricted")
-        st.caption("This dashboard is password protected. Enter authorized passcode to continue.")
-        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        st.markdown("## 🔒 Access Restricted")
-        st.caption("This dashboard is password protected. Enter authorized passcode to continue.")
-        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
-        st.error("❌ Incorrect Passcode")
-        return False
-    else:
-        return True
+    # Direct access enabled - bypasses password screen
+    return True
 
 if not check_password():
     st.stop()
