@@ -1,5 +1,6 @@
 import json
 import io
+import datetime
 import streamlit as st
 import ee
 import folium
@@ -10,7 +11,9 @@ import matplotlib.pyplot as plt
 # ReportLab Imports for Professional PDF
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # ---------------------------------------------------------
@@ -274,13 +277,13 @@ def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     ax.set_ylabel('Ice Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
     ax.set_title('Glacier Coverage Reduction Analysis', fontsize=10, fontweight='bold', color='#0f172a', pad=10)
     ax.tick_params(axis='both', which='major', labelsize=8.5)
-    ax.set_ylim(0, max(area_b, area_c) * 1.25)
+    ax.set_ylim(0, max(area_b, area_c) * 1.25 if max(area_b, area_c) > 0 else 10)
     
     for bar in bars:
         yval = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width()/2.0, 
-            yval + (max(area_b, area_c) * 0.03), 
+            yval + (max(area_b, area_c) * 0.03 if max(area_b, area_c) > 0 else 0.2), 
             f'{yval:.2f} sq km', 
             ha='center', 
             va='bottom', 
@@ -491,19 +494,25 @@ m = folium.Map(
 
 viz_params = {'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']}
 
-map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
-folium.TileLayer(
-    tiles=map_id_base['tile_fetcher'].url_format,
-    attr='Google Earth Engine',
-    name=f'Glacier Ice ({year_baseline})'
-).add_to(m)
+try:
+    map_id_base = ee.Image(mask_base.updateMask(mask_base)).getMapId(viz_params)
+    folium.TileLayer(
+        tiles=map_id_base['tile_fetcher'].url_format,
+        attr='Google Earth Engine',
+        name=f'Glacier Ice ({year_baseline})'
+    ).add_to(m)
+except Exception as e:
+    st.warning(f"Could not load {year_baseline} layer overlay: {e}")
 
-map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
-folium.TileLayer(
-    tiles=map_id_curr['tile_fetcher'].url_format,
-    attr='Google Earth Engine',
-    name=f'Glacier Ice ({year_current})'
-).add_to(m)
+try:
+    map_id_curr = ee.Image(mask_curr.updateMask(mask_curr)).getMapId(viz_params)
+    folium.TileLayer(
+        tiles=map_id_curr['tile_fetcher'].url_format,
+        attr='Google Earth Engine',
+        name=f'Glacier Ice ({year_current})'
+    ).add_to(m)
+except Exception as e:
+    st.warning(f"Could not load {year_current} layer overlay: {e}")
 
 folium.LayerControl(collapsed=False).add_to(m)
 
