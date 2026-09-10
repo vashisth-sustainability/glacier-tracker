@@ -194,7 +194,7 @@ def load_hydro_targets():
                     return data
         except Exception:
             pass
-    # Default Fallback targets if JSON is missing or invalid
+    # Fallback targets if JSON file is missing or invalid
     return [
         {"id": "HT-01", "name": "Tapovan Vishnugad HEP", "river": "Dhauliganga", "capacity_mw": 520, "lat": 30.528, "lon": 79.620, "risk_status": "HIGH"},
         {"id": "HT-02", "name": "Tehri Hydro Complex", "river": "Bhagirathi", "capacity_mw": 2400, "lat": 30.378, "lon": 78.480, "risk_status": "MODERATE"},
@@ -500,7 +500,7 @@ if app_mode == "🧊 Glacier Retreat Tracker":
         st.warning(f"Could not load {year_current} layer overlay: {e}")
 
     folium.LayerControl(collapsed=False).add_to(m)
-    st_folium(m, width=1300, height=500)
+    st_folium(m, width="100%", height=500)
 
     st.markdown("---")
 
@@ -527,7 +527,7 @@ if app_mode == "🧊 Glacier Retreat Tracker":
             template="plotly_dark",
             height=350
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with pdf_col:
         st.subheader("📄 Automated PDF Briefing")
@@ -552,7 +552,7 @@ if app_mode == "🧊 Glacier Retreat Tracker":
             data=pdf_bytes,
             file_name=file_name,
             mime="application/pdf",
-            width="stretch"
+            use_container_width=True
         )
 
     st.markdown("---")
@@ -605,7 +605,6 @@ else:
 
     hydro_targets = load_hydro_targets()
 
-    # Safely extract target names handling missing/alternate keys
     target_names = []
     for t in hydro_targets:
         name = t.get('name') or t.get('target_name') or t.get('plant_name') or 'Unknown Asset'
@@ -637,11 +636,9 @@ else:
 
         st.markdown("---")
 
-        # Safely parse coordinates
         lat = target.get("lat") or target.get("latitude") or 30.528
         lon = target.get("lon") or target.get("longitude") or 79.620
 
-        # Interactive Map Centered on Hydro Target
         st.subheader(f"🗺️ Asset Spatial Monitoring Map: {asset_name}")
         
         hm = folium.Map(
@@ -651,7 +648,6 @@ else:
             attr="Esri World Imagery"
         )
 
-        # Color mapping for risk level
         risk_color = "red" if "HIGH" in asset_risk or "CRITICAL" in asset_risk else ("orange" if "MOD" in asset_risk or "ELEVATED" in asset_risk else "green")
         
         folium.Marker(
@@ -661,7 +657,6 @@ else:
             icon=folium.Icon(color=risk_color, icon="bolt", prefix="fa")
         ).add_to(hm)
 
-        # Circle buffer showing 10km warning radius
         folium.Circle(
             location=[lat, lon],
             radius=10000,
@@ -671,8 +666,8 @@ else:
             popup="10km GLOF Alert Buffer"
         ).add_to(hm)
 
-        st_folium(hm, width=1300, height=450)
+        st_folium(hm, width="100%", height=450)
 
         st.markdown("---")
         st.subheader("📊 Dynamic Hydro Targets Summary Table")
-        st.dataframe(hydro_targets, width="stretch")
+        st.dataframe(hydro_targets, use_container_width=True)
