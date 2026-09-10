@@ -7,6 +7,8 @@
       "state": "Uttarakhand",
       "latitude": 30.5283,
       "longitude": 79.6231,
+      "capacity_mw": 520,
+      "risk_status": "HIGH",
       "buffer_km": 20
     },
     {
@@ -16,6 +18,8 @@
       "state": "Sikkim",
       "latitude": 27.5975,
       "longitude": 88.6475,
+      "capacity_mw": 1200,
+      "risk_status": "CRITICAL",
       "buffer_km": 20
     },
     {
@@ -25,6 +29,8 @@
       "state": "Sikkim",
       "latitude": 27.3821,
       "longitude": 88.5284,
+      "capacity_mw": 510,
+      "risk_status": "HIGH",
       "buffer_km": 20
     },
     {
@@ -34,6 +40,8 @@
       "state": "Uttarakhand",
       "latitude": 30.3775,
       "longitude": 78.4800,
+      "capacity_mw": 1000,
+      "risk_status": "MODERATE",
       "buffer_km": 20
     },
     {
@@ -43,6 +51,8 @@
       "state": "Himachal Pradesh",
       "latitude": 31.5647,
       "longitude": 77.9786,
+      "capacity_mw": 1500,
+      "risk_status": "ELEVATED",
       "buffer_km": 20
     },
     {
@@ -52,6 +62,8 @@
       "state": "Uttarakhand",
       "latitude": 29.9675,
       "longitude": 80.5281,
+      "capacity_mw": 280,
+      "risk_status": "HIGH",
       "buffer_km": 20
     },
     {
@@ -61,6 +73,8 @@
       "state": "Himachal Pradesh",
       "latitude": 31.5414,
       "longitude": 78.1819,
+      "capacity_mw": 1091,
+      "risk_status": "ELEVATED",
       "buffer_km": 20
     }
   ]
