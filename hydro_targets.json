@@ -17,6 +17,51 @@
       "latitude": 27.5975,
       "longitude": 88.6475,
       "buffer_km": 20
+    },
+    {
+      "id": "asset_003",
+      "name": "Teesta-V Hydro Station",
+      "river_basin": "Teesta",
+      "state": "Sikkim",
+      "latitude": 27.3821,
+      "longitude": 88.5284,
+      "buffer_km": 20
+    },
+    {
+      "id": "asset_004",
+      "name": "Tehri Hydro Power Plant",
+      "river_basin": "Bhagirathi",
+      "state": "Uttarakhand",
+      "latitude": 30.3775,
+      "longitude": 78.4800,
+      "buffer_km": 20
+    },
+    {
+      "id": "asset_005",
+      "name": "Nathpa Jhakri Hydro Power Station",
+      "river_basin": "Satluj",
+      "state": "Himachal Pradesh",
+      "latitude": 31.5647,
+      "longitude": 77.9786,
+      "buffer_km": 20
+    },
+    {
+      "id": "asset_006",
+      "name": "Dhauliganga Power Station",
+      "river_basin": "Dhauliganga",
+      "state": "Uttarakhand",
+      "latitude": 29.9675,
+      "longitude": 80.5281,
+      "buffer_km": 20
+    },
+    {
+      "id": "asset_007",
+      "name": "Karcham Wangtoo Hydroelectric Plant",
+      "river_basin": "Satluj",
+      "state": "Himachal Pradesh",
+      "latitude": 31.5414,
+      "longitude": 78.1819,
+      "buffer_km": 20
     }
   ]
 }
