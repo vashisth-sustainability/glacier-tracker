@@ -187,7 +187,11 @@ def load_hydro_targets():
     if os.path.exists(file_path):
         try:
             with open(file_path, "r") as f:
-                return json.load(f).get("targets", [])
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data.get("targets", [])
+                elif isinstance(data, list):
+                    return data
         except Exception:
             pass
     # Default Fallback targets if JSON is missing or invalid
@@ -601,51 +605,74 @@ else:
 
     hydro_targets = load_hydro_targets()
 
-    target_names = [f"{t['name']} ({t['river']} River)" for t in hydro_targets]
-    selected_target_idx = st.sidebar.selectbox("Select Hydro Infrastructure Target", range(len(target_names)), format_func=lambda x: target_names[x])
-    target = hydro_targets[selected_target_idx]
+    # Safely extract target names handling missing/alternate keys
+    target_names = []
+    for t in hydro_targets:
+        name = t.get('name') or t.get('target_name') or t.get('plant_name') or 'Unknown Asset'
+        river = t.get('river') or t.get('river_name') or 'Unknown River'
+        target_names.append(f"{name} ({river} River)")
 
-    st.markdown("### ⚡ Infrastructure Profile")
-    h_col1, h_col2, h_col3, h_col4 = st.columns(4)
-    h_col1.metric("Asset ID", target.get("id", "N/A"))
-    h_col2.metric("Target Plant", target.get("name", "N/A"))
-    h_col3.metric("River System", target.get("river", "N/A"))
-    h_col4.metric("Capacity (MW)", f"{target.get('capacity_mw', 'N/A')} MW")
+    if not hydro_targets:
+        st.warning("⚠️ No hydro infrastructure targets found.")
+    else:
+        selected_target_idx = st.sidebar.selectbox(
+            "Select Hydro Infrastructure Target", 
+            range(len(target_names)), 
+            format_func=lambda x: target_names[x]
+        )
+        target = hydro_targets[selected_target_idx]
 
-    st.markdown("---")
+        asset_id = target.get("id") or target.get("target_id") or "N/A"
+        asset_name = target.get("name") or target.get("target_name") or target.get("plant_name") or "N/A"
+        asset_river = target.get("river") or target.get("river_name") or "N/A"
+        asset_capacity = target.get("capacity_mw") or target.get("capacity") or "N/A"
+        asset_risk = str(target.get("risk_status") or target.get("risk_level") or "MODERATE").upper()
 
-    # Interactive Map Centered on Hydro Target
-    st.subheader(f"🗺️ Asset Spatial Monitoring Map: {target.get('name')}")
-    
-    hm = folium.Map(
-        location=[target["lat"], target["lon"]],
-        zoom_start=11,
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri World Imagery"
-    )
+        st.markdown("### ⚡ Infrastructure Profile")
+        h_col1, h_col2, h_col3, h_col4 = st.columns(4)
+        h_col1.metric("Asset ID", asset_id)
+        h_col2.metric("Target Plant", asset_name)
+        h_col3.metric("River System", asset_river)
+        h_col4.metric("Capacity (MW)", f"{asset_capacity} MW" if asset_capacity != "N/A" else "N/A")
 
-    # Color mapping for risk level
-    risk_color = "red" if target.get("risk_status") == "HIGH" else ("orange" if target.get("risk_status") in ["MODERATE", "ELEVATED"] else "green")
-    
-    folium.Marker(
-        location=[target["lat"], target["lon"]],
-        popup=f"<b>{target['name']}</b><br>Capacity: {target.get('capacity_mw')} MW<br>Risk Status: {target.get('risk_status')}",
-        tooltip=target["name"],
-        icon=folium.Icon(color=risk_color, icon="bolt", prefix="fa")
-    ).add_to(hm)
+        st.markdown("---")
 
-    # Circle buffer showing 10km warning radius
-    folium.Circle(
-        location=[target["lat"], target["lon"]],
-        radius=10000,
-        color=risk_color,
-        fill=True,
-        fill_opacity=0.15,
-        popup="10km GLOF Alert Buffer"
-    ).add_to(hm)
+        # Safely parse coordinates
+        lat = target.get("lat") or target.get("latitude") or 30.528
+        lon = target.get("lon") or target.get("longitude") or 79.620
 
-    st_folium(hm, width=1300, height=450)
+        # Interactive Map Centered on Hydro Target
+        st.subheader(f"🗺️ Asset Spatial Monitoring Map: {asset_name}")
+        
+        hm = folium.Map(
+            location=[lat, lon],
+            zoom_start=11,
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri World Imagery"
+        )
 
-    st.markdown("---")
-    st.subheader("📊 Dynamic Hydro Targets Summary Table")
-    st.dataframe(hydro_targets, width="stretch")
+        # Color mapping for risk level
+        risk_color = "red" if "HIGH" in asset_risk or "CRITICAL" in asset_risk else ("orange" if "MOD" in asset_risk or "ELEVATED" in asset_risk else "green")
+        
+        folium.Marker(
+            location=[lat, lon],
+            popup=f"<b>{asset_name}</b><br>Capacity: {asset_capacity} MW<br>Risk Status: {asset_risk}",
+            tooltip=asset_name,
+            icon=folium.Icon(color=risk_color, icon="bolt", prefix="fa")
+        ).add_to(hm)
+
+        # Circle buffer showing 10km warning radius
+        folium.Circle(
+            location=[lat, lon],
+            radius=10000,
+            color=risk_color,
+            fill=True,
+            fill_opacity=0.15,
+            popup="10km GLOF Alert Buffer"
+        ).add_to(hm)
+
+        st_folium(hm, width=1300, height=450)
+
+        st.markdown("---")
+        st.subheader("📊 Dynamic Hydro Targets Summary Table")
+        st.dataframe(hydro_targets, width="stretch")
