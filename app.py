@@ -196,13 +196,13 @@ def load_hydro_targets():
             pass
     # Fallback targets if JSON file is missing or invalid
     return [
-        {"id": "HT-01", "name": "Tapovan Vishnugad HEP", "river": "Dhauliganga", "capacity_mw": 520, "lat": 30.528, "lon": 79.620, "risk_status": "HIGH"},
-        {"id": "HT-02", "name": "Tehri Hydro Complex", "river": "Bhagirathi", "capacity_mw": 2400, "lat": 30.378, "lon": 78.480, "risk_status": "MODERATE"},
-        {"id": "HT-03", "name": "Karcham Wangtoo HEP", "river": "Sutlej", "capacity_mw": 1000, "lat": 31.540, "lon": 78.180, "risk_status": "ELEVATED"},
-        {"id": "HT-04", "name": "Nathpa Jhakri HEP", "river": "Sutlej", "capacity_mw": 1500, "lat": 31.560, "lon": 77.980, "risk_status": "MODERATE"},
-        {"id": "HT-05", "name": "Vishnuprayag HEP", "river": "Alaknanda", "capacity_mw": 400, "lat": 30.560, "lon": 79.570, "risk_status": "HIGH"},
-        {"id": "HT-06", "name": "Srinagar HEP", "river": "Alaknanda", "capacity_mw": 330, "lat": 30.220, "lon": 78.780, "risk_status": "SAFE"},
-        {"id": "HT-07", "name": "Subansiri Lower HEP", "river": "Subansiri", "capacity_mw": 2000, "lat": 27.550, "lon": 94.260, "risk_status": "ELEVATED"}
+        {"id": "asset_001", "name": "Tapovan Vishnugad HEP", "river_basin": "Dhauliganga / Alaknanda", "state": "Uttarakhand", "latitude": 30.5283, "longitude": 79.6231, "capacity_mw": 520, "risk_status": "HIGH", "buffer_km": 20},
+        {"id": "asset_002", "name": "Teesta III HEP", "river_basin": "Teesta", "state": "Sikkim", "latitude": 27.5975, "longitude": 88.6475, "capacity_mw": 1200, "risk_status": "CRITICAL", "buffer_km": 20},
+        {"id": "asset_003", "name": "Teesta-V Hydro Station", "river_basin": "Teesta", "state": "Sikkim", "latitude": 27.3821, "longitude": 88.5284, "capacity_mw": 510, "risk_status": "HIGH", "buffer_km": 20},
+        {"id": "asset_004", "name": "Tehri Hydro Power Plant", "river_basin": "Bhagirathi", "state": "Uttarakhand", "latitude": 30.3775, "longitude": 78.4800, "capacity_mw": 1000, "risk_status": "MODERATE", "buffer_km": 20},
+        {"id": "asset_005", "name": "Nathpa Jhakri Hydro Power Station", "river_basin": "Satluj", "state": "Himachal Pradesh", "latitude": 31.5647, "longitude": 77.9786, "capacity_mw": 1500, "risk_status": "ELEVATED", "buffer_km": 20},
+        {"id": "asset_006", "name": "Dhauliganga Power Station", "river_basin": "Dhauliganga", "state": "Uttarakhand", "latitude": 29.9675, "longitude": 80.5281, "capacity_mw": 280, "risk_status": "HIGH", "buffer_km": 20},
+        {"id": "asset_007", "name": "Karcham Wangtoo Hydroelectric Plant", "river_basin": "Satluj", "state": "Himachal Pradesh", "latitude": 31.5414, "longitude": 78.1819, "capacity_mw": 1091, "risk_status": "ELEVATED", "buffer_km": 20}
     ]
 
 # ---------------------------------------------------------
@@ -601,46 +601,52 @@ if app_mode == "🧊 Glacier Retreat Tracker":
 # =========================================================
 else:
     st.title("⚡ Hydroelectric Power Infrastructure & GLOF Risk Monitor")
-    st.caption("Integrated Monitoring Pipeline • Dynamic Target Asset Analysis (`hydro_targets.json`)")
+    st.caption("Live Hydro Data Pipeline • Auto-Refreshed Plant Analytics")
 
     hydro_targets = load_hydro_targets()
 
-    target_names = []
-    for t in hydro_targets:
-        name = t.get('name') or t.get('target_name') or t.get('plant_name') or 'Unknown Asset'
-        river = t.get('river') or t.get('river_name') or 'Unknown River'
-        target_names.append(f"{name} ({river} River)")
+    def get_val(item, keys, default="N/A"):
+        for k in keys:
+            if k in item and item[k] not in [None, "", "N/A"]:
+                return item[k]
+        return default
+
+    target_names = [
+        f"{get_val(t, ['name', 'target_name', 'plant_name'])} ({get_val(t, ['river_basin', 'river', 'river_name'])})"
+        for t in hydro_targets
+    ]
 
     if not hydro_targets:
         st.warning("⚠️ No hydro infrastructure targets found.")
     else:
-        selected_target_idx = st.sidebar.selectbox(
+        selected_idx = st.sidebar.selectbox(
             "Select Hydro Infrastructure Target", 
             range(len(target_names)), 
             format_func=lambda x: target_names[x]
         )
-        target = hydro_targets[selected_target_idx]
+        
+        target = hydro_targets[selected_idx]
 
-        asset_id = target.get("id") or target.get("target_id") or "N/A"
-        asset_name = target.get("name") or target.get("target_name") or target.get("plant_name") or "N/A"
-        asset_river = target.get("river") or target.get("river_name") or "N/A"
-        asset_capacity = target.get("capacity_mw") or target.get("capacity") or "N/A"
-        asset_risk = str(target.get("risk_status") or target.get("risk_level") or "MODERATE").upper()
+        asset_id = get_val(target, ["id", "asset_id", "target_id"])
+        asset_name = get_val(target, ["name", "target_name", "plant_name"])
+        river_basin = get_val(target, ["river_basin", "river", "river_name"])
+        state = get_val(target, ["state"], "India")
+        capacity = get_val(target, ["capacity_mw", "capacity"])
+        risk_status = str(get_val(target, ["risk_status", "risk", "risk_level"], "MODERATE")).upper()
+        lat = float(get_val(target, ["latitude", "lat"], 30.5283))
+        lon = float(get_val(target, ["longitude", "lon"], 79.6231))
+        buffer_km = float(get_val(target, ["buffer_km"], 20))
 
         st.markdown("### ⚡ Infrastructure Profile")
-        h_col1, h_col2, h_col3, h_col4 = st.columns(4)
-        h_col1.metric("Asset ID", asset_id)
-        h_col2.metric("Target Plant", asset_name)
-        h_col3.metric("River System", asset_river)
-        h_col4.metric("Capacity (MW)", f"{asset_capacity} MW" if asset_capacity != "N/A" else "N/A")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Asset ID", asset_id)
+        c2.metric("Target Plant", asset_name)
+        c3.metric("River Basin", f"{river_basin} ({state})")
+        c4.metric("Capacity (MW)", f"{capacity} MW" if capacity != "N/A" else "N/A")
 
         st.markdown("---")
-
-        lat = target.get("lat") or target.get("latitude") or 30.528
-        lon = target.get("lon") or target.get("longitude") or 79.620
-
         st.subheader(f"🗺️ Asset Spatial Monitoring Map: {asset_name}")
-        
+
         hm = folium.Map(
             location=[lat, lon],
             zoom_start=11,
@@ -648,22 +654,22 @@ else:
             attr="Esri World Imagery"
         )
 
-        risk_color = "red" if "HIGH" in asset_risk or "CRITICAL" in asset_risk else ("orange" if "MOD" in asset_risk or "ELEVATED" in asset_risk else "green")
-        
+        risk_color = "red" if any(r in risk_status for r in ["HIGH", "CRITICAL"]) else ("orange" if any(r in risk_status for r in ["ELEVATED", "MOD"]) else "green")
+
         folium.Marker(
             location=[lat, lon],
-            popup=f"<b>{asset_name}</b><br>Capacity: {asset_capacity} MW<br>Risk Status: {asset_risk}",
+            popup=f"<b>{asset_name}</b><br>State: {state}<br>Capacity: {capacity} MW<br>Risk: {risk_status}",
             tooltip=asset_name,
             icon=folium.Icon(color=risk_color, icon="bolt", prefix="fa")
         ).add_to(hm)
 
         folium.Circle(
             location=[lat, lon],
-            radius=10000,
+            radius=buffer_km * 1000,
             color=risk_color,
             fill=True,
-            fill_opacity=0.15,
-            popup="10km GLOF Alert Buffer"
+            fill_opacity=0.12,
+            popup=f"{buffer_km}km GLOF Alert Buffer"
         ).add_to(hm)
 
         st_folium(hm, width="100%", height=450)
