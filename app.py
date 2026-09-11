@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 # 1. PAGE CONFIGURATION & CUSTOM STYLING
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Government Critical Zone & Pilgrimage Glacier Live Radar",
+    page_title="Glacier Critical Zone & Pilgrimage Glacier Live Radar",
     page_icon="🚨",
     layout="wide"
 )
@@ -231,7 +231,7 @@ def load_comprehensive_hazard_sites():
             "evacuation_required": "FULL CLEARANCE DIRECTIVE (MANDATORY)",
             "evacuation_time_window": "20 to 30 Minutes Max",
             "high_risk_villages": ["Chungthang Town", "Lachen Foot", "Lachung Lower Axis", "Mangan Lowlands"],
-            "evacuation_protocol": "Immediate evacuation of Chungthang and Mangan riverfronts. Sound sirens across Sikkim North Highway. Open headrace sluices.",
+            "evacuation_protocol": "Immediate evacuation of public from sensitive areas.",
             "zoom": 12
         },
         {
@@ -253,7 +253,7 @@ def load_comprehensive_hazard_sites():
             "evacuation_required": "STANDBY HIGH ALERT",
             "evacuation_time_window": "45 to 60 Minutes",
             "high_risk_villages": ["Singtam Market", "Rangpo Highway Margin", "Teesta Bazar"],
-            "evacuation_protocol": "Issue early alert to Singtam and Rangpo police checkpoints. Suspend all traffic on NH-10 near river elevation.",
+            "evacuation_protocol": "Issue early alert to SP Vasisth.",
             "zoom": 11
         },
 
@@ -377,7 +377,7 @@ def get_live_satellite_layer(lat, lon, sensor_type):
 # ---------------------------------------------------------
 # 5. USER INTERFACE & DASHBOARD
 # ---------------------------------------------------------
-st.title("🚨 Government Disaster Command: Himalayan Glacier & Pilgrimage Live Radar")
+st.title("SP Vashisth Disaster Command: Himalayan Glacier & Pilgrimage Live Radar")
 st.markdown("<b>Real-time Sentinel/Landsat Radar Pipeline for High-Risk Power Plants & Pilgrimage Shrines</b>", unsafe_allow_html=True)
 st.divider()
 
@@ -410,7 +410,7 @@ satellite_sensor = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.warning("⚠️ **Government Official Notice:** All calculations are driven directly by real-time Copernicus & USGS satellite observations via Google Earth Engine API.")
+st.sidebar.warning("All calculations are driven directly by real-time Copernicus & USGS satellite observations via Google Earth Engine API.")
 
 # TARGET HEADER
 st.subheader(f"📍 Operational Focus: {selected_site['name']}")
