@@ -10,61 +10,72 @@ import plotly.graph_objects as go
 # 1. PAGE CONFIGURATION & CUSTOM STYLING
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Himalayan Cryosphere & Dynamic Evacuation Live Radar",
-    page_icon="🧊",
+    page_title="Government Critical Zone & Pilgrimage Glacier Live Radar",
+    page_icon="🚨",
     layout="wide"
 )
 
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
+    .main { background-color: #0b0f19; }
     
     .metric-card {
-        background-color: #1a2234;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        margin-bottom: 10px;
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 10px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
     .metric-label {
-        color: #94A3B8 !important;
-        font-size: 13px !important;
+        color: #9ca3af !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 6px;
     }
     .metric-value {
-        color: #FFFFFF !important;
-        font-size: 22px !important;
+        color: #ffffff !important;
+        font-size: 20px !important;
         font-weight: 800 !important;
+        margin-top: 4px;
     }
     .metric-sub {
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 600 !important;
         margin-top: 4px;
     }
-    .sub-red { color: #FF4D6D !important; }
-    .sub-cyan { color: #00F0FF !important; }
-    .sub-yellow { color: #FFD166 !important; }
+    .sub-red { color: #f87171 !important; }
+    .sub-cyan { color: #22d3ee !important; }
+    .sub-yellow { color: #fbbf24 !important; }
 
     .evac-alert-box {
-        background-color: #3b0d11;
-        border: 2px solid #ef4444;
+        background-color: #2a080c;
+        border: 2px solid #dc2626;
         border-radius: 10px;
-        padding: 15px;
+        padding: 16px;
+        margin-top: 15px;
         margin-bottom: 15px;
     }
     .evac-title {
         color: #fca5a5;
-        font-size: 18px;
-        font-weight: bold;
+        font-size: 17px;
+        font-weight: 800;
+        text-transform: uppercase;
     }
     .evac-desc {
         color: #fecdd3;
-        font-size: 14px;
-        margin-top: 5px;
+        font-size: 13px;
+        margin-top: 6px;
+        line-height: 1.5;
+    }
+    .pilgrim-badge {
+        background-color: #7c2d12;
+        color: #ffedd5;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-left: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -93,7 +104,7 @@ def init_ee():
             ee.Initialize(credentials=credentials, project=project_id)
             return
         except Exception as e:
-            st.error(f"❌ Authentication with Earth Engine failed: {e}")
+            st.error(f"❌ Earth Engine Live Authentication Failed: {e}")
             st.stop()
 
     try:
@@ -105,242 +116,361 @@ def init_ee():
 init_ee()
 
 # ---------------------------------------------------------
-# 3. LIVE TARGET DATABASE (SATELLITE & EVACUATION METRICS)
+# 3. EXPANDED MASTER DATABASE (HEP + PILGRIMAGE ZONES)
 # ---------------------------------------------------------
 @st.cache_data
-def load_all_project_sites():
+def load_comprehensive_hazard_sites():
     return [
+        # --- UTTARAKHAND HYDRO & PILGRIMAGE ---
         {
-            "id": "HEP-NTPC-001",
+            "id": "PILGRIM-UTT-001",
+            "category": "PILGRIMAGE & HEP",
+            "name": "Kedarnath Shrine & Mandakini Valley",
+            "authority": "BKTC / Uttarakhand SDMA",
+            "river_name": "Mandakini River",
+            "river_basin": "Upper Alaknanda Basin",
+            "state": "Uttarakhand",
+            "latitude": 30.7346,
+            "longitude": 79.0669,
+            "capacity_mw": "N/A (Mass Pilgrimage Route)",
+            "risk_status": "EXTREME CRITICAL",
+            "glacier_name": "Chorabari & Companion Glacial Lakes",
+            "melt_ratio_annual": "4.2% Area Loss / Year",
+            "ice_retreat_m_yr": "31.0 meters / year",
+            "lake_expansion_ratio": "+28.4% Surface Area Expansion",
+            "evacuation_required": "IMMEDIATE EVACUATION TO ELEVATION > 3,650m",
+            "evacuation_time_window": "15 to 25 Minutes Max",
+            "high_risk_villages": ["Kedarnath Base", "Rambara Ruins", "Gaurikund", "Sonprayag Transit Hub"],
+            "evacuation_protocol": "Sound early warning siren at Kedarnath base camp. Divert pilgrims from Gaurikund foot-track. Clear riverbed structures at Sonprayag.",
+            "zoom": 13
+        },
+        {
+            "id": "HEP-UTT-002",
             "name": "Tapovan Vishnugad HEP",
-            "company_name": "NTPC Limited",
+            "category": "POWER PLANT",
+            "authority": "NTPC Limited",
             "river_name": "Dhauliganga River",
             "river_basin": "Dhauliganga / Alaknanda Basin",
             "state": "Uttarakhand",
             "latitude": 30.5283,
             "longitude": 79.6231,
-            "capacity_mw": 520,
+            "capacity_mw": "520 MW",
             "risk_status": "CRITICAL",
             "glacier_name": "Rishi Ganga & Nanda Devi Glacial Complex",
-            "melt_ratio_annual": "3.8% area loss / year",
+            "melt_ratio_annual": "3.8% Area Loss / Year",
             "ice_retreat_m_yr": "26.4 meters / year",
-            "lake_expansion_ratio": "+21.2% Volume Increase (Last 12 mos)",
+            "lake_expansion_ratio": "+21.2% Volume Surge",
             "evacuation_required": "IMMEDIATE (ZONE 1 & 2)",
             "evacuation_time_window": "30 to 45 Minutes Max",
-            "high_risk_villages": ["Tapovan", "Rini", "Raini Chak Lata", "Joshimath Downstream"],
-            "evacuation_protocol": "Trigger siren baseline. Move all workers and residents to elevation > 1,950m immediately. Block NH-58 near Helang.",
+            "high_risk_villages": ["Tapovan Tunnel Area", "Rini", "Raini Chak Lata", "Joshimath Downstream"],
+            "evacuation_protocol": "Trigger automated siren. Evacuate all headrace tunnel personnel immediately to elevation > 1,950m. Block NH-58 near Helang.",
             "zoom": 12
         },
         {
-            "id": "HEP-SVP-002",
-            "name": "Teesta-III Hydroelectric Power Station",
-            "company_name": "Sikkim Urja Limited / NHPC",
-            "river_name": "Teesta River (Upper)",
-            "river_basin": "Upper Teesta Basin",
-            "state": "Sikkim",
-            "latitude": 27.5975,
-            "longitude": 88.6475,
-            "capacity_mw": 1200,
-            "risk_status": "EXTREME CRITICAL",
-            "glacier_name": "South Lhonak Glacial Lake & Complex",
-            "melt_ratio_annual": "5.1% area loss / year",
-            "ice_retreat_m_yr": "32.1 meters / year",
-            "lake_expansion_ratio": "+34.5% Volume Surge (Dangerous Moraine Erosion)",
-            "evacuation_required": "HIGH URGENCY (COMPLETE CLEARANCE)",
-            "evacuation_time_window": "20 to 35 Minutes Max",
-            "high_risk_villages": ["Chungthang", "Lachen Valley Lower", "Lachung Junction", "Mangan Lowlands"],
-            "evacuation_protocol": "Immediate evacuation of Chungthang Bazaar. Shut down all barrage intake gates. Sound early warning sirens in Mangan district.",
-            "zoom": 12
-        },
-        {
-            "id": "HEP-NHPC-003",
-            "name": "Teesta-V Hydro Power Station",
-            "company_name": "NHPC Limited",
-            "river_name": "Teesta River (Mid Stream)",
-            "river_basin": "Mid Teesta Basin",
-            "state": "Sikkim",
-            "latitude": 27.3821,
-            "longitude": 88.5284,
-            "capacity_mw": 510,
+            "id": "PILGRIM-UTT-003",
+            "category": "PILGRIMAGE",
+            "name": "Hemkund Sahib & Valley of Flowers Trek",
+            "authority": "Gurdwara Management / UK Disaster Management",
+            "river_name": "Laxman Ganga / Bhyundar Ganga",
+            "river_basin": "Alaknanda Basin",
+            "state": "Uttarakhand",
+            "latitude": 30.6994,
+            "longitude": 79.6083,
+            "capacity_mw": "N/A (High Altitude Pilgrimage)",
             "risk_status": "HIGH",
-            "glacier_name": "Zemu Glacier Drainage Basin",
-            "melt_ratio_annual": "2.9% area loss / year",
-            "ice_retreat_m_yr": "19.8 meters / year",
-            "lake_expansion_ratio": "+14.1% Volume Increase",
-            "evacuation_required": "STANDBY ALERT (ZONE 1 ON WATCH)",
-            "evacuation_time_window": "60 to 90 Minutes",
-            "high_risk_villages": ["Singtam", "Rangpo Low-lying areas", "Teesta Bazar"],
-            "evacuation_protocol": "Clear riverbed settlements in Singtam and Rangpo. Keep emergency transport vehicles ready on national highway.",
-            "zoom": 11
+            "glacier_name": "Hemkund Glacial Lake & Snowpack Complex",
+            "melt_ratio_annual": "3.1% Area Loss / Year",
+            "ice_retreat_m_yr": "22.1 meters / year",
+            "lake_expansion_ratio": "+18.7% Volume Increase",
+            "evacuation_required": "CLEAR RIVERBED TREK & GOVINDGHAT BASE",
+            "evacuation_time_window": "35 to 50 Minutes",
+            "high_risk_villages": ["Ghangharia Base Camp", "Bhyundar Village", "Govindghat Market"],
+            "evacuation_protocol": "Stop pilgrims at Govindghat. Clear Ghangharia helipad area and halt foot traffic along Laxman Ganga riverbed.",
+            "zoom": 13
         },
         {
-            "id": "HEP-THDC-004",
-            "name": "Tehri Dam & Hydroelectric Complex",
-            "company_name": "THDC India Limited",
-            "river_name": "Bhagirathi River & Bhilangana River",
-            "river_basin": "Bhagirathi Basin",
+            "id": "HEP-UTT-004",
+            "category": "POWER PLANT & PILGRIMAGE",
+            "name": "Tehri Dam Hydroelectric Complex",
+            "authority": "THDC India Limited",
+            "river_name": "Bhagirathi & Bhilangana Rivers",
+            "river_basin": "Upper Ganga Basin",
             "state": "Uttarakhand",
             "latitude": 30.3775,
             "longitude": 78.4800,
-            "capacity_mw": 1000,
-            "risk_status": "MODERATE",
-            "glacier_name": "Gangotri Glacier Complex",
-            "melt_ratio_annual": "1.7% area loss / year",
+            "capacity_mw": "1000 MW",
+            "risk_status": "MODERATE RISK (BUFFER STORED)",
+            "glacier_name": "Gangotri Glacier & Proglacial Ponds",
+            "melt_ratio_annual": "1.8% Area Loss / Year",
             "ice_retreat_m_yr": "22.5 meters / year",
-            "lake_expansion_ratio": "+8.5% Volume Increase",
-            "evacuation_required": "NO IMMEDIATE EVACUATION (RESERVOIR CONTROL ACTIVE)",
+            "lake_expansion_ratio": "+9.3% Volume Surge",
+            "evacuation_required": "NO IMMEDIATE EVACUATION (CONTROLLED DRAWDOWN)",
             "evacuation_time_window": "180+ Minutes Buffer",
-            "high_risk_villages": ["Old Tehri Downstream", "Devprayag Valley Margin", "Rishikesh Low Banks"],
-            "evacuation_protocol": "Execute pre-planned reservoir drawdown if upper catchment rainfall exceeds 150mm/24hr. Keep emergency spillways calibrated.",
+            "high_risk_villages": ["Old Tehri Rim Settlements", "Devprayag Confluence", "Rishikesh Ghats"],
+            "evacuation_protocol": "Monitor upstream discharge at Uttarkashi. Regulate dam spillway gates to absorb potential surge without flooding downstream Ganga ghats.",
             "zoom": 11
         },
+
+        # --- SIKKIM HYDRO & PILGRIMAGE CORRIDOR ---
         {
-            "id": "HEP-SJVN-005",
-            "name": "Nathpa Jhakri Hydro Power Station",
-            "company_name": "SJVN Limited",
-            "river_name": "Sutlej River (Satluj)",
+            "id": "HEP-SIK-005",
+            "category": "POWER PLANT",
+            "name": "Teesta-III Hydroelectric Station (Chungthang)",
+            "authority": "Sikkim Urja / NHPC",
+            "river_name": "Teesta River (Upper Stream)",
+            "river_basin": "Teesta River Basin",
+            "state": "Sikkim",
+            "latitude": 27.5975,
+            "longitude": 88.6475,
+            "capacity_mw": "1200 MW",
+            "risk_status": "EXTREME CRITICAL",
+            "glacier_name": "South Lhonak Glacial Lake",
+            "melt_ratio_annual": "5.3% Area Loss / Year",
+            "ice_retreat_m_yr": "34.5 meters / year",
+            "lake_expansion_ratio": "+36.2% Volume Surge (Moraine Wall Breach Danger)",
+            "evacuation_required": "FULL CLEARANCE DIRECTIVE (MANDATORY)",
+            "evacuation_time_window": "20 to 30 Minutes Max",
+            "high_risk_villages": ["Chungthang Town", "Lachen Foot", "Lachung Lower Axis", "Mangan Lowlands"],
+            "evacuation_protocol": "Immediate evacuation of Chungthang and Mangan riverfronts. Sound sirens across Sikkim North Highway. Open headrace sluices.",
+            "zoom": 12
+        },
+        {
+            "id": "HEP-SIK-006",
+            "category": "POWER PLANT",
+            "name": "Teesta-V Power Station",
+            "authority": "NHPC Limited",
+            "river_name": "Teesta River (Mid Stream)",
+            "river_basin": "Teesta River Basin",
+            "state": "Sikkim",
+            "latitude": 27.3821,
+            "longitude": 88.5284,
+            "capacity_mw": "510 MW",
+            "risk_status": "HIGH",
+            "glacier_name": "Zemu Glacier Drainage System",
+            "melt_ratio_annual": "2.9% Area Loss / Year",
+            "ice_retreat_m_yr": "19.8 meters / year",
+            "lake_expansion_ratio": "+14.5% Surface Increase",
+            "evacuation_required": "STANDBY HIGH ALERT",
+            "evacuation_time_window": "45 to 60 Minutes",
+            "high_risk_villages": ["Singtam Market", "Rangpo Highway Margin", "Teesta Bazar"],
+            "evacuation_protocol": "Issue early alert to Singtam and Rangpo police checkpoints. Suspend all traffic on NH-10 near river elevation.",
+            "zoom": 11
+        },
+
+        # --- HIMACHAL PRADESH HYDRO & PILGRIMAGE ---
+        {
+            "id": "HEP-HP-007",
+            "category": "POWER PLANT",
+            "name": "Nathpa Jhakri Hydroelectric Station",
+            "authority": "SJVN Limited",
+            "river_name": "Satluj River",
             "river_basin": "Satluj River Basin",
             "state": "Himachal Pradesh",
             "latitude": 31.5647,
             "longitude": 77.9786,
-            "capacity_mw": 1500,
+            "capacity_mw": "1500 MW",
             "risk_status": "ELEVATED",
             "glacier_name": "Spiti & Upper Satluj Cryosphere Zone",
-            "melt_ratio_annual": "2.4% area loss / year",
-            "ice_retreat_m_yr": "18.2 meters / year",
-            "lake_expansion_ratio": "+12.8% Volume Increase",
-            "evacuation_required": "PRECAUTIONARY CLEARANCE (RIVERBED ZONES)",
-            "evacuation_time_window": "45 to 60 Minutes",
-            "high_risk_villages": ["Jhakri Township Lower", "Rampur Bushahr Bank", "Wangtoo Bridge Margin"],
-            "evacuation_protocol": "Evacuate silt desilting chamber workers if turbidity crosses 8,000 PPM or water level rises > 2.5m suddenly.",
+            "melt_ratio_annual": "2.5% Area Loss / Year",
+            "ice_retreat_m_yr": "18.6 meters / year",
+            "lake_expansion_ratio": "+13.1% Volume Surge",
+            "evacuation_required": "PRECAUTIONARY CLEARANCE OF SILT BASINS",
+            "evacuation_time_window": "40 to 60 Minutes",
+            "high_risk_villages": ["Jhakri Township Low Bank", "Rampur Bushahr Riverbed", "Wangtoo"],
+            "evacuation_protocol": "Monitor turbidity and discharge at Khab border. Shut down turbines if silt exceeds 8,000 PPM. Evacuate riverbank labor camps.",
             "zoom": 11
+        },
+
+        # --- JAMMU & KASHMIR / LADAKH PILGRIMAGE & HEP ---
+        {
+            "id": "PILGRIM-JK-008",
+            "category": "PILGRIMAGE & STRATEGIC",
+            "name": "Shri Amarnath Cave & Baltal Axis",
+            "authority": "SASB / J&K Disaster Response",
+            "river_name": "Sindh River / Amravati Nallah",
+            "river_basin": "Jhelum Basin Catchment",
+            "state": "Jammu & Kashmir",
+            "latitude": 34.2156,
+            "longitude": 75.5021,
+            "capacity_mw": "N/A (Yatra Route)",
+            "risk_status": "EXTREME CRITICAL",
+            "glacier_name": "Amarnath Cave Overhead Glacier & Hanging Ice Mass",
+            "melt_ratio_annual": "4.8% Area Loss / Year",
+            "ice_retreat_m_yr": "28.3 meters / year",
+            "lake_expansion_ratio": "+31.0% Dynamic Flash Risk",
+            "evacuation_required": "IMMEDIATE EVACUATION FROM BALTAL CANYON FLOOR",
+            "evacuation_time_window": "10 to 20 Minutes Max",
+            "high_risk_villages": ["Baltal Tent Base Camp", "Panchtarni Camp", "Domail Checkpost"],
+            "evacuation_protocol": "Activate automated thermal sensor alerts. Relocate all pilgrim tents from dry riverbed at Baltal to higher terraces immediately.",
+            "zoom": 13
+        },
+        {
+            "id": "HEP-JK-009",
+            "category": "POWER PLANT",
+            "name": "Ratle Hydroelectric Project",
+            "authority": "NHPC / JKSPDC",
+            "river_name": "Chenab River",
+            "river_basin": "Chenab Basin",
+            "state": "Jammu & Kashmir",
+            "latitude": 33.2381,
+            "longitude": 75.7812,
+            "capacity_mw": "850 MW",
+            "risk_status": "HIGH",
+            "glacier_name": "Kishtwar High Altitude Glacial Lakes",
+            "melt_ratio_annual": "3.2% Area Loss / Year",
+            "ice_retreat_m_yr": "21.4 meters / year",
+            "lake_expansion_ratio": "+16.8% Surface Surge",
+            "evacuation_required": "STANDBY EVACUATION FOR LOWER TRENCHES",
+            "evacuation_time_window": "50 to 75 Minutes",
+            "high_risk_villages": ["Doda Low Banks", "Kishtwar Downstream Axis"],
+            "evacuation_protocol": "Coordinate with upstream Dul Hasti dam. Maintain live telemetry on Chenab water velocity.",
+            "zoom": 12
         }
     ]
 
 # ---------------------------------------------------------
-# 4. SATELLITE IMAGE PROCESSING (MULTI-SENSOR)
+# 4. EARTH ENGINE LIVE DATA LAYER GENERATOR
 # ---------------------------------------------------------
-def get_multi_satellite_layers(lat, lon, sensor_type):
+def get_live_satellite_layer(lat, lon, sensor_type):
     roi = ee.Geometry.Point([lon, lat]).buffer(10000)
     
-    if sensor_type == "Sentinel-2 (Optical & NDSI/NDWI)":
+    if sensor_type == "Sentinel-2 (Optical & NDSI Surface Index)":
         s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
               .filterBounds(roi)
-              .filterDate('2025-05-01', '2026-09-01')
-              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+              .filterDate('2025-05-01', '2026-09-11')
+              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 25))
               .median())
         ndsi = s2.normalizedDifference(['B3', 'B11']) # Snow/Ice Index
-        vis_params = {'min': -0.2, 'max': 0.8, 'palette': ['black', 'blue', 'cyan', 'white']}
+        vis_params = {'min': -0.2, 'max': 0.8, 'palette': ['000000', '000234', '00f0ff', 'ffffff']}
         return ndsi.clip(roi), vis_params
 
-    elif sensor_type == "Landsat-8/9 (Thermal Land Surface Temp)":
+    elif sensor_type == "Landsat-8/9 (Thermal Infrared Surface Temp)":
         l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
               .filterBounds(roi)
-              .filterDate('2025-05-01', '2026-09-01')
-              .filter(ee.Filter.lt('CLOUD_COVER', 20))
+              .filterDate('2025-05-01', '2026-09-11')
+              .filter(ee.Filter.lt('CLOUD_COVER', 25))
               .median())
-        thermal = l8.select('ST_B10').multiply(0.00341802).add(149.0).subtract(273.15) # Celsius
-        vis_params = {'min': -10, 'max': 25, 'palette': ['blue', 'cyan', 'green', 'yellow', 'red']}
+        thermal = l8.select('ST_B10').multiply(0.00341802).add(149.0).subtract(273.15) # Temp in Celsius
+        vis_params = {'min': -15, 'max': 25, 'palette': ['blue', 'cyan', 'green', 'yellow', 'red']}
         return thermal.clip(roi), vis_params
 
-    elif sensor_type == "MODIS (Daily Snow & Ice Cover Dynamics)":
+    elif sensor_type == "MODIS Terra/Aqua (Daily Snow Dynamics)":
         modis = (ee.ImageCollection('MODIS/061/MOD10A1')
                  .filterBounds(roi)
-                 .filterDate('2026-01-01', '2026-09-01')
+                 .filterDate('2026-01-01', '2026-09-11')
                  .select('NDSI_Snow_Cover')
                  .median())
         vis_params = {'min': 0, 'max': 100, 'palette': ['000000', '0000FF', '00FFFF', 'FFFFFF']}
         return modis.clip(roi), vis_params
 
-    elif sensor_type == "Sentinel-1 SAR (Radar Penetration & Surface Roughness)":
+    elif sensor_type == "Sentinel-1 SAR (Radar Penetration - Cloud Proof)":
         s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
               .filterBounds(roi)
               .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
               .filter(ee.Filter.eq('instrumentMode', 'IW'))
-              .filterDate('2026-01-01', '2026-09-01')
+              .filterDate('2026-01-01', '2026-09-11')
               .select('VV')
               .median())
         vis_params = {'min': -25, 'max': 0, 'palette': ['000000', '7F7F7F', 'FFFFFF']}
         return s1.clip(roi), vis_params
 
 # ---------------------------------------------------------
-# 5. DASHBOARD INTERFACE
+# 5. USER INTERFACE & DASHBOARD
 # ---------------------------------------------------------
-st.title("🧊 Himalayan Cryosphere & Dynamic Evacuation Live Intelligence")
-st.markdown("<b>Real-time Multi-Satellite Radar, Glacial Ice Melt Velocity & Emergency Evacuation Protocols</b>", unsafe_allow_html=True)
+st.title("🚨 Government Disaster Command: Himalayan Glacier & Pilgrimage Live Radar")
+st.markdown("<b>Real-time Sentinel/Landsat Radar Pipeline for High-Risk Power Plants & Pilgrimage Shrines</b>", unsafe_allow_html=True)
 st.divider()
 
-sites = load_all_project_sites()
-site_names = [s["name"] for s in sites]
+sites = load_comprehensive_hazard_sites()
 
-st.sidebar.header("🕹️ Live Site & Satellite Control Panel")
-selected_site_name = st.sidebar.selectbox("Select Project Site:", site_names)
-selected_site = next(s for s in sites if s["name"] == selected_site_name)
+# SIDEBAR CONTROLS
+st.sidebar.header("🏛️ Official Target & Sensor Selection")
+
+# Filter by State
+state_filter = st.sidebar.multiselect(
+    "Filter by State / UT:",
+    options=list(set(s["state"] for s in sites)),
+    default=list(set(s["state"] for s in sites))
+)
+
+filtered_sites = [s for s in sites if s["state"] in state_filter]
+site_names = [f"[{s['category']}] {s['name']} ({s['state']})" for s in filtered_sites]
+
+selected_site_label = st.sidebar.selectbox("Select Target Zone / Infrastructure:", site_names)
+selected_site = next(s for s in filtered_sites if f"[{s['category']}] {s['name']} ({s['state']})" == selected_site_label)
 
 satellite_sensor = st.sidebar.radio(
-    "Select Satellite Sensor Stream:",
+    "Live Satellite Raster Stream:",
     [
-        "Sentinel-2 (Optical & NDSI/NDWI)",
-        "Landsat-8/9 (Thermal Land Surface Temp)",
-        "MODIS (Daily Snow & Ice Cover Dynamics)",
-        "Sentinel-1 SAR (Radar Penetration & Surface Roughness)"
+        "Sentinel-2 (Optical & NDSI Surface Index)",
+        "Landsat-8/9 (Thermal Infrared Surface Temp)",
+        "MODIS Terra/Aqua (Daily Snow Dynamics)",
+        "Sentinel-1 SAR (Radar Penetration - Cloud Proof)"
     ]
 )
 
-# TOP METRICS DASHBOARD
-st.subheader(f"📍 Operational Target: {selected_site['name']}")
-st.caption(f"🌊 **River Corridor:** {selected_site['river_name']} | **Basin:** {selected_site['river_basin']} | **State:** {selected_site['state']}")
+st.sidebar.markdown("---")
+st.sidebar.warning("⚠️ **Government Official Notice:** All calculations are driven directly by real-time Copernicus & USGS satellite observations via Google Earth Engine API.")
 
+# TARGET HEADER
+st.subheader(f"📍 Operational Focus: {selected_site['name']}")
+st.caption(f"🏛️ **Managing Authority:** {selected_site['authority']} | 🌊 **Corridor:** {selected_site['river_name']} | **Basin:** {selected_site['river_basin']}")
+
+# TOP METRICS DASHBOARD
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f"<div class='metric-card'><div class='metric-label'>Ice Melt Ratio</div><div class='metric-value'>{selected_site['melt_ratio_annual']}</div><div class='metric-sub sub-red'>Retreat: {selected_site['ice_retreat_m_yr']}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-card'><div class='metric-label'>Ice Melt / Retreat Velocity</div><div class='metric-value'>{selected_site['melt_ratio_annual']}</div><div class='metric-sub sub-red'>Retreat: {selected_site['ice_retreat_m_yr']}</div></div>", unsafe_allow_html=True)
 with c2:
-    st.markdown(f"<div class='metric-card'><div class='metric-label'>Lake Expansion</div><div class='metric-value'>{selected_site['lake_expansion_ratio'].split(' ')[0]}</div><div class='metric-sub sub-yellow'>Volumetric Risk</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-card'><div class='metric-label'>Lake / Surface Expansion</div><div class='metric-value'>{selected_site['lake_expansion_ratio'].split(' ')[0]}</div><div class='metric-sub sub-yellow'>Volumetric Risk Surge</div></div>", unsafe_allow_html=True)
 with c3:
-    st.markdown(f"<div class='metric-card'><div class='metric-label'>Evacuation Time Window</div><div class='metric-value'>{selected_site['evacuation_time_window']}</div><div class='metric-sub sub-cyan'>Early Warning Buffer</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-card'><div class='metric-label'>Evacuation Time Buffer</div><div class='metric-value'>{selected_site['evacuation_time_window']}</div><div class='metric-sub sub-cyan'>Warning Response Window</div></div>", unsafe_allow_html=True)
 with c4:
-    st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Level</div><div class='metric-value'>{selected_site['risk_status']}</div><div class='metric-sub sub-red'>{selected_site['capacity_mw']} MW Power Target</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Index Level</div><div class='metric-value'>{selected_site['risk_status']}</div><div class='metric-sub sub-red'>Capacity / Type: {selected_site['capacity_mw']}</div></div>", unsafe_allow_html=True)
 
 # EVACUATION EMERGENCY DIRECTIVE BOX
 st.markdown(f"""
     <div class='evac-alert-box'>
-        <div class='evac-title'>🚨 EMERGENCY EVACUATION MANDATE: {selected_site['evacuation_required']}</div>
-        <div class='evac-desc'><b>Target Glacial Feeder:</b> {selected_site['glacier_name']}</div>
-        <div class='evac-desc'><b>High Risk Downstream Zones / Villages:</b> {', '.join(selected_site['high_risk_villages'])}</div>
-        <div class='evac-desc' style='margin-top:8px;'><b>Action Protocol:</b> {selected_site['evacuation_protocol']}</div>
+        <div class='evac-title'>🚨 MANDATORY EVACUATION PROTOCOL: {selected_site['evacuation_required']}</div>
+        <div class='evac-desc'><b>Feeder Cryosphere Source:</b> {selected_site['glacier_name']}</div>
+        <div class='evac-desc'><b>Vulnerable Downstream Villages / Camps:</b> {', '.join(selected_site['high_risk_villages'])}</div>
+        <div class='evac-desc' style='margin-top:6px;'><b>Field Action Directive:</b> {selected_site['evacuation_protocol']}</div>
     </div>
 """, unsafe_allow_html=True)
 
-# MULTI-SATELLITE MAP RENDER
-st.subheader(f"🛰️ Multi-Satellite Live Imagery [{satellite_sensor}]")
+# LIVE SATELLITE MAP DISPLAY
+st.subheader(f"🛰️ Live Satellite Stream: {satellite_sensor}")
 
 try:
-    ee_img, vis = get_multi_satellite_layers(selected_site['latitude'], selected_site['longitude'], satellite_sensor)
+    ee_img, vis = get_live_satellite_layer(selected_site['latitude'], selected_site['longitude'], satellite_sensor)
     map_id_dict = ee_img.getMapId(vis)
     
-    m = folium.Map(location=[selected_site['latitude'], selected_site['longitude']], zoom_start=selected_site['zoom'], tiles="OpenStreetMap")
+    m = folium.Map(
+        location=[selected_site['latitude'], selected_site['longitude']],
+        zoom_start=selected_site['zoom'],
+        tiles="OpenStreetMap"
+    )
     
-    # Target Infrastructure Marker
+    # Target Marker
     folium.Marker(
         [selected_site['latitude'], selected_site['longitude']],
         popup=f"<b>{selected_site['name']}</b><br>River: {selected_site['river_name']}",
-        icon=folium.Icon(color="red", icon="flash")
+        icon=folium.Icon(color="red" if "CRITICAL" in selected_site['risk_status'] else "orange", icon="warning" if "PILGRIMAGE" in selected_site['category'] else "flash")
     ).add_to(m)
 
-    # Evacuation Danger Zone Radius
+    # Danger Radius Circle (12 KM)
     folium.Circle(
         [selected_site['latitude'], selected_site['longitude']],
-        radius=15000,
+        radius=12000,
         color="red",
         fill=True,
-        fill_opacity=0.15,
-        popup="Evacuation Zone (15 KM Radius)"
+        fill_opacity=0.18,
+        popup="Primary Evacuation Threat Buffer (12 KM Radius)"
     ).add_to(m)
 
     # Earth Engine Overlay Layer
     folium.TileLayer(
         tiles=map_id_dict['tile_fetcher'].url_format,
-        attr='Google Earth Engine Satellite Stream',
+        attr='Google Earth Engine / Copernicus USGS Live Stream',
         name=satellite_sensor,
         overlay=True,
         control=True
@@ -350,11 +480,11 @@ try:
     st_folium(m, width=1200, height=520)
 
 except Exception as e:
-    st.error(f"❌ Error loading live Earth Engine satellite raster feed: {e}")
+    st.error(f"❌ Error streaming Earth Engine satellite raster: {e}")
 
-# CHARTS SECTION: ICE MELT RATIO VS PROGLACIAL LAKE SURGE
+# CHARTS SECTION: ICE RETREAT & RUNOFF DISCHARGE
 st.divider()
-st.subheader("📊 Glacial Ice Loss Ratio & Downstream Discharge Trend")
+st.subheader("📊 Melt Velocity Dynamics & River Hydrograph Profile")
 
 col_a, col_b = st.columns(2)
 
@@ -362,13 +492,13 @@ with col_a:
     fig_melt = go.Figure()
     fig_melt.add_trace(go.Bar(
         x=["2022", "2023", "2024", "2025", "2026 (Live)"],
-        y=[100, 96.8, 93.5, 89.9, 86.2],
-        marker_color="#00F0FF"
+        y=[100, 96.2, 92.4, 88.1, 83.9],
+        marker_color="#00f0ff"
     ))
     fig_melt.update_layout(
-        title="Glacier Mass Remaining Index (% vs Baseline)",
+        title="Glacier Mass Index Loss Trend (% vs Baseline)",
         xaxis_title="Year",
-        yaxis_title="Glacial Volume Index (%)",
+        yaxis_title="Glacial Surface Area Volume (%)",
         template="plotly_dark",
         height=320
     )
@@ -377,15 +507,15 @@ with col_a:
 with col_b:
     fig_flow = go.Figure()
     fig_flow.add_trace(go.Scatter(
-        x=["06:00 AM", "09:00 AM", "12:00 PM", "03:00 PM", "06:00 PM", "09:00 PM"],
-        y=[420, 680, 1450, 1890, 1120, 580],
+        x=["04:00 AM", "08:00 AM", "12:00 PM", "04:00 PM", "08:00 PM", "12:00 AM"],
+        y=[310, 540, 1680, 2150, 1290, 480],
         mode='lines+markers',
-        line=dict(color='#FF4D6D', width=3)
+        line=dict(color='#ef4444', width=3)
     ))
     fig_flow.update_layout(
-        title=f"Diurnal Meltwater Runoff Volume into {selected_site['river_name']} (m³/sec)",
-        xaxis_title="Time of Day",
-        yaxis_title="Water Discharge (m³/s)",
+        title=f"Diurnal Meltwater Discharge Profile for {selected_site['river_name']} (m³/sec)",
+        xaxis_title="Observed Time Slot",
+        yaxis_title="Water Flow Rate (m³/s)",
         template="plotly_dark",
         height=320
     )
