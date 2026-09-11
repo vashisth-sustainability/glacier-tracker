@@ -184,30 +184,40 @@ filtered_glaciers = [
 selected_glacier_name = st.sidebar.selectbox("Select Target Glacier", filtered_glaciers)
 selected_glacier = GLACIERS[selected_glacier_name]
 
-# Sensor Selector
 st.sidebar.markdown("### 🛰️ Satellite Sensor Engine")
-selected_sensor = st.sidebar.radio(
+sensor_key_map = {
+    "Sentinel-2 Optical (10m Ultra-Clean)": "S2",
+    "Sentinel-1 SAR Radar (Cloud Penetrating)": "S1",
+    "Landsat 8/9 Thermal & Ice (30m)": "L8",
+    "MODIS Terra Daily Snow Dynamics": "MODIS"
+}
+
+selected_sensor_label = st.sidebar.radio(
     "Primary Satellite Source",
-    ("Sentinel-2 (10m High-Res Clean Optical)",
-     "Sentinel-1 (SAR Cloud-Penetrating Radar)",
-     "Landsat 8/9 (Surface Temperature & Ice)",
-     "MODIS Terra (Daily Snow/Ice Dynamics)")
+    list(sensor_key_map.keys())
 )
+sensor_code = sensor_key_map[selected_sensor_label]
 
 st.sidebar.markdown("### 🗓️ Comparison Timeline")
 year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
 year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
 # ---------------------------------------------------------
-# 5. ADVANCED MULTI-SENSOR & CLEAN MASKING DATA PIPELINE
+# 5. ADVANCED MULTI-SENSOR & ULTRA-CLEAN DATA PIPELINE
 # ---------------------------------------------------------
 
 def mask_s2_clouds(image):
-    """Cleanest Sentinel-2 Image Masker using QA60 bitmask"""
     qa = image.select('QA60')
     cloud_bit_mask = 1 << 10
     cirrus_bit_mask = 1 << 11
     mask = qa.bitwiseAnd(cloud_bit_mask).eq(0).And(qa.bitwiseAnd(cirrus_bit_mask).eq(0))
+    return image.updateMask(mask)
+
+def mask_landsat_clouds(image):
+    qa = image.select('QA_PIXEL')
+    cloud_shadow_bit_mask = 1 << 3
+    cloud_bit_mask = 1 << 4
+    mask = qa.bitwiseAnd(cloud_shadow_bit_mask).eq(0).And(qa.bitwiseAnd(cloud_bit_mask).eq(0))
     return image.updateMask(mask)
 
 def get_clean_sensor_data(lat, lon, year, sensor_type):
@@ -215,22 +225,19 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
     start_date = f"{year}-05-01"
     end_date = f"{year}-09-30"
 
-    if "Sentinel-2" in sensor_type:
+    if sensor_type == "S2":
         s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
               .filterBounds(roi)
               .filterDate(start_date, end_date)
-              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15))
               .map(mask_s2_clouds))
         
         composite = s2.median().clip(roi)
-        
-        # Clean NDSI calculation
         ndsi = composite.normalizedDifference(['B3', 'B11']).rename('NDSI')
         snow_mask = ndsi.gt(0.42)
-        
         vis_params = {'bands': ['B4', 'B3', 'B2'], 'min': 0, 'max': 3000, 'gamma': 1.2}
-        
-    elif "Sentinel-1" in sensor_type:
+
+    elif sensor_type == "S1":
         s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
               .filterBounds(roi)
               .filterDate(start_date, end_date)
@@ -238,17 +245,21 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
               .select(['VV', 'VH']))
         
         composite = s1.median().clip(roi)
-        snow_mask = composite.select('VV').lt(-12)
-        vis_params = {'bands': ['VV'], 'min': -25, 'max': 0}
+        snow_mask = composite.select('VV').lt(-11)
+        vis_params = {'bands': ['VV', 'VH', 'VV'], 'min': -25, 'max': 0}
 
-    elif "Landsat" in sensor_type:
+    elif sensor_type == "L8":
         l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
               .filterBounds(roi)
               .filterDate(start_date, end_date)
-              .filter(ee.Filter.lt('CLOUD_COVER', 15)))
+              .filter(ee.Filter.lt('CLOUD_COVER', 15))
+              .map(mask_landsat_clouds))
         
         composite = l8.median().clip(roi)
-        ndsi = composite.normalizedDifference(['SR_B3', 'SR_B6']).rename('NDSI')
+        # Scaled Surface Reflectance Calculation for Landsat
+        sr_green = composite.select('SR_B3').multiply(0.0000275).add(-0.2)
+        sr_swir = composite.select('SR_B6').multiply(0.0000275).add(-0.2)
+        ndsi = sr_green.subtract(sr_swir).divide(sr_green.add(sr_swir)).rename('NDSI')
         snow_mask = ndsi.gt(0.40)
         vis_params = {'bands': ['SR_B4', 'SR_B3', 'SR_B2'], 'min': 7000, 'max': 22000}
 
@@ -259,15 +270,15 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
                  .select('NDSI_Snow_Cover'))
         
         composite = modis.median().clip(roi)
-        snow_mask = composite.gt(40)
-        vis_params = {'min': 0, 'max': 100, 'palette': ['black', 'blue', 'white']}
+        snow_mask = composite.gt(35)
+        vis_params = {'min': 0, 'max': 100, 'palette': ['000000', '0000FF', 'FFFFFF']}
 
-    # Area calculation
+    # Glacier Surface Area Calculation
     area_image = snow_mask.multiply(ee.Image.pixelArea())
     stats = area_image.reduceRegion(
         reducer=ee.Reducer.sum(),
         geometry=roi,
-        scale=10 if "Sentinel" in sensor_type else 30,
+        scale=10 if sensor_type in ["S2", "S1"] else 30,
         maxPixels=1e9
     )
     
@@ -293,13 +304,13 @@ def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     ax.set_ylabel('Ice Area (sq km)', fontsize=9, fontweight='bold', color='#1e293b')
     ax.set_title('Glacier Coverage Reduction Analysis', fontsize=10, fontweight='bold', color='#0f172a', pad=10)
     ax.tick_params(axis='both', which='major', labelsize=8.5)
-    ax.set_ylim(0, max(area_b, area_c) * 1.25)
+    ax.set_ylim(0, max(area_b, area_c) * 1.25 if max(area_b, area_c) > 0 else 10)
     
     for bar in bars:
         yval = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width()/2.0, 
-            yval + (max(area_b, area_c) * 0.03), 
+            yval + (max(area_b, area_c, 1) * 0.03), 
             f'{yval:.2f} sq km', 
             ha='center', va='bottom', fontsize=8.5, fontweight='bold', color='#0f172a'
         )
@@ -331,7 +342,7 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     story = []
 
     story.append(Paragraph("HIMALAYAN GLACIER SATELLITE ANALYSIS REPORT", title_style))
-    story.append(Paragraph(f"Target: <b>{glacier_name}</b> | Registry ID: {info['custom_id']} | Sensor Source: <b>{sensor}</b>", subtitle_style))
+    story.append(Paragraph(f"Target: <b>{glacier_name}</b> | Registry ID: {info['custom_id']} | Sensor Engine: <b>{sensor}</b>", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=COLOR_ACCENT, spaceAfter=8))
 
     story.append(Paragraph("1. SATELLITE RETREAT METRICS & GRAPHICAL ANALYSIS", heading_style))
@@ -395,7 +406,7 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
 # 7. DASHBOARD HEADER & REAL-TIME MELTING INDICATOR
 # ---------------------------------------------------------
 st.title("🛰️ Multi-Sensor Himalayan Glacier Intelligence Terminal")
-st.caption(f"Active Sensor Engine: **{selected_sensor}** | Location: **{selected_glacier_name}**")
+st.caption(f"Active Sensor Engine: **{selected_sensor_label}** | Location: **{selected_glacier_name}**")
 
 # Custom Profile Card
 m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -406,9 +417,9 @@ m_col4.metric("Historic Retreat", selected_glacier["retreat_rate"])
 
 st.markdown("---")
 
-with st.spinner(f"Fetching clean multi-spectral imagery via Google Earth Engine ({selected_sensor})..."):
-    comp_base, mask_base, area_base, vis_params = get_clean_sensor_data(selected_glacier["lat"], selected_glacier["lon"], year_baseline, selected_sensor)
-    comp_curr, mask_curr, area_curr, _ = get_clean_sensor_data(selected_glacier["lat"], selected_glacier["lon"], year_current, selected_sensor)
+with st.spinner(f"Processing & Filtering Clean Imagery via Google Earth Engine [{sensor_code}]..."):
+    comp_base, mask_base, area_base, vis_params = get_clean_sensor_data(selected_glacier["lat"], selected_glacier["lon"], year_baseline, sensor_code)
+    comp_curr, mask_curr, area_curr, _ = get_clean_sensor_data(selected_glacier["lat"], selected_glacier["lon"], year_current, sensor_code)
 
 area_lost = area_base - area_curr
 perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
@@ -416,15 +427,15 @@ year_span = max(1, year_current - year_baseline)
 annual_loss_rate = area_lost / year_span
 
 # Dynamic Melting Status Badge
-is_actively_melting = annual_loss_rate > 0.10 or perc_lost > 1.0
+is_actively_melting = annual_loss_rate > 0.05 or perc_lost > 0.5
 
 if is_actively_melting:
     st.markdown(f"""
         <div class="status-card-melting">
-            <h3>🚨 LIVE MELTING ALERT: ACTIVE ICE MELT & RETREAT DETECTED</h3>
-            <p>Satellite observation using <b>{selected_sensor}</b> confirms ongoing surface mass loss. High thermal absorption and snout recession active.</p>
+            <h3>🚨 LIVE MELTING ALERT: ACTIVE ICE MELT DETECTED</h3>
+            <p>Satellite observation via <b>{selected_sensor_label}</b> confirms active surface mass loss and retreat.</p>
             <ul>
-                <li><b>Total Loss ({year_baseline}-{year_current}):</b> -{area_lost:.2f} sq km (-{perc_lost:.1f}%)</li>
+                <li><b>Net Loss ({year_baseline} → {year_current}):</b> -{area_lost:.2f} sq km (-{perc_lost:.1f}%)</li>
                 <li><b>Annual Melt Velocity:</b> {annual_loss_rate:.2f} sq km/year</li>
             </ul>
         </div>
@@ -432,8 +443,8 @@ if is_actively_melting:
 else:
     st.markdown(f"""
         <div class="status-card-stable">
-            <h3>✅ GLACIER STABILITY: NO CRITICAL MASS LOSS DETECTED</h3>
-            <p>Current seasonal imagery indicates stable surface ice coverage across target monitoring ROI.</p>
+            <h3>✅ GLACIER MASS STABILITY: NO HIGH RETREAT DETECTED</h3>
+            <p>Current multi-spectral analysis indicates stable glacier ice boundaries across the target zone.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -471,16 +482,16 @@ with col4:
         <div class="metric-card">
             <div class="metric-label">Melt Velocity</div>
             <div class="metric-value">{annual_loss_rate:.2f} <span style="font-size: 15px;">sq km/yr</span></div>
-            <div class="metric-sub sub-cyan">● {selected_sensor.split()[0]}</div>
+            <div class="metric-sub sub-cyan">● Sensor Engine: {sensor_code}</div>
         </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 8. MAP VISUALIZATION (CLEAN FOOTAGE OVERLAY)
+# 8. DYNAMIC MAP VISUALIZATION ENGINE
 # ---------------------------------------------------------
-st.subheader(f"🗺️ Cleanest Live Satellite Overlay ({year_baseline} vs {year_current})")
+st.subheader(f"🗺️ Clean Live Satellite Overlay ({year_baseline} vs {year_current})")
 
 m = folium.Map(
     location=[selected_glacier["lat"], selected_glacier["lon"]],
@@ -489,15 +500,31 @@ m = folium.Map(
     attr="Esri World Imagery"
 )
 
+# Render Raw Composite Sensor Layer
+map_id_comp = ee.Image(comp_curr).getMapId(vis_params)
+folium.TileLayer(
+    tiles=map_id_comp['tile_fetcher'].url_format,
+    attr='Google Earth Engine',
+    name=f'{sensor_code} Live Composite ({year_current})'
+).add_to(m)
+
+# Render Processed Ice Boundary Layer (Cyan Overlay)
 map_id_mask = ee.Image(mask_curr.updateMask(mask_curr)).getMapId({'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']})
 folium.TileLayer(
     tiles=map_id_mask['tile_fetcher'].url_format,
     attr='Google Earth Engine',
-    name=f'Clean Ice Coverage Overlay ({year_current})'
+    name=f'Extracted Ice Boundary ({year_current})'
 ).add_to(m)
 
 folium.LayerControl(collapsed=False).add_to(m)
-st_folium(m, width=1300, height=500)
+
+# FIXED: Dynamic Key forcing Folium to re-render instantly on radio/slider change
+st_folium(
+    m, 
+    key=f"map_{selected_glacier_name}_{sensor_code}_{year_baseline}_{year_current}", 
+    width=1300, 
+    height=520
+)
 
 # ---------------------------------------------------------
 # 9. MULTI-DECADE HISTORICAL TREND & PDF EXPORTER
@@ -535,7 +562,7 @@ with pdf_col:
     pdf_bytes = generate_pdf_report(
         selected_glacier_name, year_baseline, year_current,
         area_base, area_curr, area_lost, perc_lost,
-        annual_loss_rate, selected_glacier, selected_sensor
+        annual_loss_rate, selected_glacier, selected_sensor_label
     )
 
     st.download_button(
