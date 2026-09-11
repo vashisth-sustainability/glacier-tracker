@@ -74,38 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. PASSWORD PROTECTION SYSTEM
-# ---------------------------------------------------------
-def check_password():
-    query_params = st.query_params
-    if query_params.get("key") == "swastik":
-        return True
-
-    def password_entered():
-        if st.session_state["password"] == st.secrets.get("APP_PASSWORD", ""):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.markdown("## 🔒 Access Restricted")
-        st.caption("Enter authorized passcode to access satellite intelligence terminal.")
-        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        st.markdown("## 🔒 Access Restricted")
-        st.text_input("Enter Passcode", type="password", on_change=password_entered, key="password")
-        st.error("❌ Incorrect Passcode")
-        return False
-    else:
-        return True
-
-if not check_password():
-    st.stop()
-
-# ---------------------------------------------------------
-# 3. EARTH ENGINE INITIALIZATION
+# 2. EARTH ENGINE INITIALIZATION
 # ---------------------------------------------------------
 @st.cache_resource
 def init_ee():
@@ -138,7 +107,7 @@ def init_ee():
 init_ee()
 
 # ---------------------------------------------------------
-# 4. CUSTOM GLACIER DATABASE
+# 3. CUSTOM GLACIER DATABASE
 # ---------------------------------------------------------
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
@@ -200,7 +169,7 @@ GLACIERS = {
 }
 
 # ---------------------------------------------------------
-# 5. SIDEBAR CONTROLS & MULTI-SENSOR SELECTION
+# 4. SIDEBAR CONTROLS & MULTI-SENSOR SELECTION
 # ---------------------------------------------------------
 st.sidebar.title("🧊 Glacier Tracker AI")
 st.sidebar.markdown("---")
@@ -230,7 +199,7 @@ year_baseline = st.sidebar.slider("Baseline Year", 2018, 2022, 2021)
 year_current = st.sidebar.slider("Current Year", 2023, 2026, 2026)
 
 # ---------------------------------------------------------
-# 6. ADVANCED MULTI-SENSOR & CLEAN MASKING DATA PIPELINE
+# 5. ADVANCED MULTI-SENSOR & CLEAN MASKING DATA PIPELINE
 # ---------------------------------------------------------
 
 def mask_s2_clouds(image):
@@ -259,7 +228,6 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
         ndsi = composite.normalizedDifference(['B3', 'B11']).rename('NDSI')
         snow_mask = ndsi.gt(0.42)
         
-        # Visual params (True Color vs Snow Mask)
         vis_params = {'bands': ['B4', 'B3', 'B2'], 'min': 0, 'max': 3000, 'gamma': 1.2}
         
     elif "Sentinel-1" in sensor_type:
@@ -270,7 +238,6 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
               .select(['VV', 'VH']))
         
         composite = s1.median().clip(roi)
-        # Radar threshold for glacier ice backscatter
         snow_mask = composite.select('VV').lt(-12)
         vis_params = {'bands': ['VV'], 'min': -25, 'max': 0}
 
@@ -281,7 +248,6 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
               .filter(ee.Filter.lt('CLOUD_COVER', 15)))
         
         composite = l8.median().clip(roi)
-        # Modified NDSI for Landsat 8 (B3 Green, B6 SWIR)
         ndsi = composite.normalizedDifference(['SR_B3', 'SR_B6']).rename('NDSI')
         snow_mask = ndsi.gt(0.40)
         vis_params = {'bands': ['SR_B4', 'SR_B3', 'SR_B2'], 'min': 7000, 'max': 22000}
@@ -293,7 +259,7 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
                  .select('NDSI_Snow_Cover'))
         
         composite = modis.median().clip(roi)
-        snow_mask = composite.gt(40) # Snow cover percentage > 40%
+        snow_mask = composite.gt(40)
         vis_params = {'min': 0, 'max': 100, 'palette': ['black', 'blue', 'white']}
 
     # Area calculation
@@ -311,7 +277,7 @@ def get_clean_sensor_data(lat, lon, year, sensor_type):
     return composite, snow_mask, area_sqkm, vis_params
 
 # ---------------------------------------------------------
-# 7. PDF REPORT GENERATOR
+# 6. PDF REPORT GENERATOR
 # ---------------------------------------------------------
 def generate_pdf_chart(area_b, area_c, b_yr, c_yr):
     plt.style.use('ggplot')
@@ -426,7 +392,7 @@ def generate_pdf_report(glacier_name, baseline_yr, current_yr, area_b, area_c, a
     return buffer.getvalue()
 
 # ---------------------------------------------------------
-# 8. DASHBOARD HEADER & REAL-TIME MELTING INDICATOR
+# 7. DASHBOARD HEADER & REAL-TIME MELTING INDICATOR
 # ---------------------------------------------------------
 st.title("🛰️ Multi-Sensor Himalayan Glacier Intelligence Terminal")
 st.caption(f"Active Sensor Engine: **{selected_sensor}** | Location: **{selected_glacier_name}**")
@@ -449,9 +415,7 @@ perc_lost = (area_lost / area_base) * 100 if area_base > 0 else 0
 year_span = max(1, year_current - year_baseline)
 annual_loss_rate = area_lost / year_span
 
-# ---------------------------------------------------------
-# DYNAMIC MELTING STATUS BADGE (AUTOMATED IS-MELTING CHECK)
-# ---------------------------------------------------------
+# Dynamic Melting Status Badge
 is_actively_melting = annual_loss_rate > 0.10 or perc_lost > 1.0
 
 if is_actively_melting:
@@ -514,7 +478,7 @@ with col4:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 9. MAP VISUALIZATION (CLEAN FOOTEGE OVERLAY)
+# 8. MAP VISUALIZATION (CLEAN FOOTAGE OVERLAY)
 # ---------------------------------------------------------
 st.subheader(f"🗺️ Cleanest Live Satellite Overlay ({year_baseline} vs {year_current})")
 
@@ -525,7 +489,6 @@ m = folium.Map(
     attr="Esri World Imagery"
 )
 
-# Display Clean Base Mosaic & Mask
 map_id_mask = ee.Image(mask_curr.updateMask(mask_curr)).getMapId({'min': 0, 'max': 1, 'palette': ['000000', '00FFFF']})
 folium.TileLayer(
     tiles=map_id_mask['tile_fetcher'].url_format,
@@ -537,7 +500,7 @@ folium.LayerControl(collapsed=False).add_to(m)
 st_folium(m, width=1300, height=500)
 
 # ---------------------------------------------------------
-# 10. MULTI-DECADE HISTORICAL TREND & PDF EXPORTER
+# 9. MULTI-DECADE HISTORICAL TREND & PDF EXPORTER
 # ---------------------------------------------------------
 st.markdown("---")
 chart_col, pdf_col = st.columns([3, 1])
