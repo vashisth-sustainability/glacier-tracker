@@ -50,7 +50,7 @@ st.markdown("""
     }
     .metric-value {
         color: #FFFFFF !important;
-        font-size: 26px !important;
+        font-size: 24px !important;
         font-weight: 800 !important;
     }
     .metric-sub {
@@ -104,6 +104,7 @@ init_ee()
 GLACIERS = {
     "Gangotri Glacier (Uttarakhand)": {
         "basin": "Ganga Basin",
+        "river_name": "Bhagirathi River",
         "custom_id": "HIM-UK-GAN-01",
         "mean_elevation": "5,000 m",
         "lat": 30.9256, "lon": 79.0669, "zoom": 12,
@@ -119,11 +120,76 @@ GLACIERS = {
 @st.cache_data
 def load_hydro_targets():
     return [
-        {"id": "HEP-NTPC-001", "name": "Tapovan Vishnugad HEP", "company_name": "NTPC Limited", "river_basin": "Dhauliganga / Alaknanda", "state": "Uttarakhand", "latitude": 30.5283, "longitude": 79.6231, "capacity_mw": 520, "risk_status": "HIGH", "buffer_km": 20, "head_glacier": "Headwater Glacial Complex"},
-        {"id": "HEP-SVP-002", "name": "Teesta-III Hydroelectric Power Station", "company_name": "Sikkim Urja Limited / NHPC", "river_basin": "Upper Teesta Basin", "state": "Sikkim", "latitude": 27.5975, "longitude": 88.6475, "capacity_mw": 1200, "risk_status": "CRITICAL", "buffer_km": 20, "head_glacier": "South Lhonak & Lake Outflow Complex"},
-        {"id": "HEP-NHPC-003", "name": "Teesta-V Hydro Power Station", "company_name": "NHPC Limited", "river_basin": "Mid Teesta Basin", "state": "Sikkim", "latitude": 27.3821, "longitude": 88.5284, "capacity_mw": 510, "risk_status": "HIGH", "buffer_km": 20, "head_glacier": "Zemu Glacier Drainage Basin"},
-        {"id": "HEP-THDC-004", "name": "Tehri Dam & Hydroelectric Complex", "company_name": "THDC India Limited", "river_basin": "Bhagirathi Basin", "state": "Uttarakhand", "latitude": 30.3775, "longitude": 78.4800, "capacity_mw": 1000, "risk_status": "MODERATE", "buffer_km": 20, "head_glacier": "Gangotri Glacier Complex"},
-        {"id": "HEP-SJVN-005", "name": "Nathpa Jhakri Hydro Power Station", "company_name": "SJVN Limited", "river_basin": "Satluj River Basin", "state": "Himachal Pradesh", "latitude": 31.5647, "longitude": 77.9786, "capacity_mw": 1500, "risk_status": "ELEVATED", "buffer_km": 20, "head_glacier": "Spiti & Upper Satluj Cryosphere Zone"}
+        {
+            "id": "HEP-NTPC-001",
+            "name": "Tapovan Vishnugad HEP",
+            "company_name": "NTPC Limited",
+            "river_name": "Dhauliganga River",
+            "river_basin": "Dhauliganga / Alaknanda Basin",
+            "state": "Uttarakhand",
+            "latitude": 30.5283,
+            "longitude": 79.6231,
+            "capacity_mw": 520,
+            "risk_status": "HIGH",
+            "buffer_km": 20,
+            "head_glacier": "Headwater Glacial Complex (Rishi Ganga & Dhauliganga Catchment)"
+        },
+        {
+            "id": "HEP-SVP-002",
+            "name": "Teesta-III Hydroelectric Power Station",
+            "company_name": "Sikkim Urja Limited / NHPC",
+            "river_name": "Teesta River (Upper)",
+            "river_basin": "Upper Teesta Basin",
+            "state": "Sikkim",
+            "latitude": 27.5975,
+            "longitude": 88.6475,
+            "capacity_mw": 1200,
+            "risk_status": "CRITICAL",
+            "buffer_km": 20,
+            "head_glacier": "South Lhonak & Lake Outflow Complex"
+        },
+        {
+            "id": "HEP-NHPC-003",
+            "name": "Teesta-V Hydro Power Station",
+            "company_name": "NHPC Limited",
+            "river_name": "Teesta River (Mid Stream)",
+            "river_basin": "Mid Teesta Basin",
+            "state": "Sikkim",
+            "latitude": 27.3821,
+            "longitude": 88.5284,
+            "capacity_mw": 510,
+            "risk_status": "HIGH",
+            "buffer_km": 20,
+            "head_glacier": "Zemu Glacier Drainage Basin"
+        },
+        {
+            "id": "HEP-THDC-004",
+            "name": "Tehri Dam & Hydroelectric Complex",
+            "company_name": "THDC India Limited",
+            "river_name": "Bhagirathi River & Bhilangana River",
+            "river_basin": "Bhagirathi Basin",
+            "state": "Uttarakhand",
+            "latitude": 30.3775,
+            "longitude": 78.4800,
+            "capacity_mw": 1000,
+            "risk_status": "MODERATE",
+            "buffer_km": 20,
+            "head_glacier": "Gangotri Glacier Complex"
+        },
+        {
+            "id": "HEP-SJVN-005",
+            "name": "Nathpa Jhakri Hydro Power Station",
+            "company_name": "SJVN Limited",
+            "river_name": "Sutlej River (Satluj)",
+            "river_basin": "Satluj River Basin",
+            "state": "Himachal Pradesh",
+            "latitude": 31.5647,
+            "longitude": 77.9786,
+            "capacity_mw": 1500,
+            "risk_status": "ELEVATED",
+            "buffer_km": 20,
+            "head_glacier": "Spiti & Upper Satluj Cryosphere Zone"
+        }
     ]
 
 # ---------------------------------------------------------
@@ -232,9 +298,10 @@ def generate_10page_detailed_pdf_report(site_data):
 
     # Dynamic Field Fallbacks
     facility_name = site_data.get("name", "Tapovan Vishnugad HEP")
-    company_name = site_data.get("company_name", "NTPC Limited") # Exact Company Name Fix
+    company_name = site_data.get("company_name", "NTPC Limited")
     asset_id = site_data.get("id", "HEP-NTPC-001")
-    river_basin = site_data.get("river_basin", "Dhauliganga / Alaknanda")
+    river_name = site_data.get("river_name", "Dhauliganga River")
+    river_basin = site_data.get("river_basin", "Dhauliganga / Alaknanda Basin")
     capacity = site_data.get("capacity_mw", "520")
     risk_level = str(site_data.get("risk_status", "HIGH")).upper()
     lat = float(site_data.get("latitude", 30.5283))
@@ -255,7 +322,7 @@ def generate_10page_detailed_pdf_report(site_data):
         f"<b>FORMAL TRANSMITTAL & ASSESSMENT BRIEF</b><br/><br/>"
         f"This formal environmental audit provides a multi-spectral cryospheric safety and GLOF vulnerability assessment for the "
         f"<b>{facility_name}</b>, owned and operated by <b>{company_name}</b>. High-resolution Sentinel-2 and Landsat-9 imagery "
-        f"were synthesized with SRTM digital elevation models to evaluate operational risks along the <b>{river_basin}</b> corridor."
+        f"were synthesized with SRTM digital elevation models to evaluate operational risks along the <b>{river_name}</b> ({river_basin}) corridor."
     )
     story.append(Paragraph(transmittal_text, body_style))
     story.append(Spacer(1, 10))
@@ -263,10 +330,11 @@ def generate_10page_detailed_pdf_report(site_data):
     cov_summary = [
         [Paragraph("<b>Audit Parameter</b>", table_header), Paragraph("<b>Target Facility Specification</b>", table_header)],
         [Paragraph("Facility Name", table_text), Paragraph(f"<b>{facility_name}</b>", table_text)],
-        [Paragraph("Operating Entity", table_text), Paragraph(f"<b>{company_name}</b>", table_text)], # Corrected Field
+        [Paragraph("Operating Entity", table_text), Paragraph(f"<b>{company_name}</b>", table_text)],
         [Paragraph("Facility ID Code", table_text), Paragraph(f"{asset_id}", table_text)],
+        [Paragraph("Associated River", table_text), Paragraph(f"<b>{river_name}</b>", table_text)],
         [Paragraph("Geo-Coordinates", table_text), Paragraph(f"Lat: {lat:.4f}°N | Lon: {lon:.4f}°E", table_text)],
-        [Paragraph("River Catchment", table_text), Paragraph(f"{river_basin}", table_text)],
+        [Paragraph("River Catchment Basin", table_text), Paragraph(f"{river_basin}", table_text)],
         [Paragraph("Installed Capacity", table_text), Paragraph(f"{capacity} MW", table_text)],
         [Paragraph("Upstream Glacial Feeder", table_text), Paragraph(f"{head_glacier}", table_text)],
         [Paragraph("GLOF Hazard Level", table_text), Paragraph(f"<font color='#dc2626'><b>{risk_level}</b></font>", table_text)],
@@ -310,10 +378,10 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("REGULATORY COMPLIANCE STANDARDS", h2_style))
-    story.append(Paragraph(f"This environmental evaluation satisfies statutory mandates framed by the <b>National Disaster Management Authority (NDMA)</b>, Central Electricity Authority (CEA) safety guidelines, and CWC Dam Safety Protocols for <b>{company_name}</b>.", body_style))
+    story.append(Paragraph(f"This environmental evaluation satisfies statutory mandates framed by the <b>National Disaster Management Authority (NDMA)</b>, Central Electricity Authority (CEA) safety guidelines, and CWC Dam Safety Protocols for <b>{company_name}</b> operating on the <b>{river_name}</b>.", body_style))
     story.append(PageBreak())
 
-    # PAGE 3: GLACIAL MELT & DISCHARGE (Added Executive Takeaways)
+    # PAGE 3: GLACIAL MELT & DISCHARGE
     story.append(Paragraph("SECTION 3: GLACIAL MELT VELOCITY & HOURLY DISCHARGE", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
@@ -322,7 +390,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(Spacer(1, 8))
 
     story.append(Paragraph("<b>Executive Summary & Risk Takeaways:</b>", h2_style))
-    story.append(Paragraph("• <b>Diurnal Peak Surge:</b> Maximum meltwater outflow peaks at 18,500 m³/hr around mid-day ablation cycles.", bullet_style))
+    story.append(Paragraph(f"• <b>Diurnal Peak Surge:</b> Maximum meltwater outflow into <b>{river_name}</b> peaks at 18,500 m³/hr around mid-day ablation cycles.", bullet_style))
     story.append(Paragraph("• <b>Accelerated Retreat:</b> Upstream feeder glacier displays an alarming surface retreat rate of 24.5 meters/year.", bullet_style))
     story.append(Paragraph("• <b>Operational Impact:</b> Elevated discharge increases turbidity and headrace intake pressure during peak summer.", bullet_style))
     story.append(Spacer(1, 8))
@@ -344,7 +412,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(t_melt)
     story.append(PageBreak())
 
-    # PAGE 4: SATELLITE IMAGERY (Added Executive Takeaways & Fixed Clean Text)
+    # PAGE 4: SATELLITE IMAGERY
     story.append(Paragraph("SECTION 4: SATELLITE IMAGERY ANALYSIS (NDSI/NDWI INDICES)", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
@@ -374,13 +442,13 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(t_sat)
     story.append(PageBreak())
 
-    # PAGE 5: GLOF SIMULATION (Added Executive Takeaways & Clean Text)
+    # PAGE 5: GLOF SIMULATION
     story.append(Paragraph("SECTION 5: PROGLACIAL LAKE DYNAMICS & GLOF SIMULATION", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
     story.append(Paragraph("<b>Executive Summary & Dynamic Flood Insights:</b>", h2_style))
-    story.append(Paragraph(f"• <b>Breach Volume:</b> Unconsolidated moraine dams hold approximately 4.2 Million m³ of impounded meltwater.", bullet_style))
-    story.append(Paragraph("• <b>Flood Velocity:</b> Hydrodynamic 2D modeling projects flood wave propagation speeds up to 51.1 km/h.", bullet_style))
+    story.append(Paragraph("• <b>Breach Volume:</b> Unconsolidated moraine dams hold approximately 4.2 Million m³ of impounded meltwater.", bullet_style))
+    story.append(Paragraph(f"• <b>Flood Velocity:</b> Hydrodynamic 2D modeling projects flood wave propagation speeds along <b>{river_name}</b> up to 51.1 km/h.", bullet_style))
     story.append(Paragraph(f"• <b>Lead Time Buffer:</b> Early warning window for <b>{facility_name}</b> intake is strictly estimated at 32 minutes.", bullet_style))
     story.append(Spacer(1, 10))
 
@@ -391,7 +459,7 @@ def generate_10page_detailed_pdf_report(site_data):
         [Paragraph("Peak Breach Discharge (Q_peak)", table_text), Paragraph("<b>3,450 m³/sec</b>", table_text)],
         [Paragraph("Flood Wave Velocity", table_text), Paragraph("14.2 m/s (51.1 km/h)", table_text)],
         [Paragraph("Lead Early Warning Buffer", table_text), Paragraph("<font color='#dc2626'><b>32 Minutes</b></font>", table_text)],
-        [Paragraph("Projected Flood Surge Height", table_text), Paragraph("+6.8 meters above riverbed", table_text)],
+        [Paragraph("Projected Flood Surge Height", table_text), Paragraph(f"+6.8 meters above {river_name} bed", table_text)],
     ]
     t_glof = Table(glof_data, colWidths=[240, 300])
     t_glof.setStyle(TableStyle([
@@ -409,7 +477,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
     story.append(Paragraph("<b>Executive Summary & Terrain Assessment:</b>", h2_style))
-    story.append(Paragraph("• <b>Steep Gradient:</b> Catchment exhibits a steep 18.4% mean valley slope accelerating rockfall and ice avalanches.", bullet_style))
+    story.append(Paragraph(f"• <b>Steep Gradient:</b> {river_name} catchment exhibits a steep 18.4% mean valley slope accelerating rockfall and ice avalanches.", bullet_style))
     story.append(Paragraph("• <b>Landslide Hotspots:</b> High-resolution DEM identifies 4 unstable flank zones with slope angles > 40 degrees.", bullet_style))
     story.append(Paragraph("• <b>Permafrost Thaw:</b> Rising ambient temperatures increase the likelihood of structural slope failure upstream.", bullet_style))
     story.append(Spacer(1, 10))
@@ -438,14 +506,14 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
     story.append(Paragraph("<b>Executive Summary & Abrasion Risk:</b>", h2_style))
-    story.append(Paragraph("• <b>Extreme Silt Load:</b> Peak monsoon suspended sediment concentration reaches 6,800 PPM.", bullet_style))
+    story.append(Paragraph(f"• <b>Extreme Silt Load:</b> Peak monsoon suspended sediment concentration in <b>{river_name}</b> reaches 6,800 PPM.", bullet_style))
     story.append(Paragraph("• <b>Hard Mineral Dominance:</b> Quartz content is measured at 78% with a high hardness rating (7 Mohs scale).", bullet_style))
     story.append(Paragraph("• <b>Maintenance Impact:</b> High-velocity silt flow requires specialized hard-coating on turbine runner blades.", bullet_style))
     story.append(Spacer(1, 10))
 
     silt_data = [
         [Paragraph("<b>Sediment Parameter</b>", table_header), Paragraph("<b>Observed Concentration Value</b>", table_header)],
-        [Paragraph("Peak Monsoon Silt Load", table_text), Paragraph("<b>6,800 PPM</b>", table_text)],
+        [Paragraph(f"Peak Monsoon Silt Load ({river_name})", table_text), Paragraph("<b>6,800 PPM</b>", table_text)],
         [Paragraph("Quartz Mineral Content", table_text), Paragraph("78% Hardness Grade 7 (Mohs Scale)", table_text)],
         [Paragraph("Expected Turbine Erosion Rate", table_text), Paragraph("<font color='#dc2626'>Severe Runner Blade Wear</font>", table_text)],
         [Paragraph("Desilting Basin Efficiency Target", table_text), Paragraph("92% Particle Removal (>0.2mm)", table_text)],
@@ -468,7 +536,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(Paragraph("<b>Executive Summary & Asset Integrity:</b>", h2_style))
     story.append(Paragraph("• <b>Diversion Barrage:</b> Barrage retains satisfactory rating (84/100) but requires downstream basin armoring.", bullet_style))
     story.append(Paragraph("• <b>Tunnel Intake Vulnerability:</b> Headrace Tunnel (HRT) intake rated 68/100 due to flood debris blockage risk.", bullet_style))
-    story.append(Paragraph("• <b>Powerhouse Protection:</b> Surface powerhouse requires reinforced flood barrier walls against river surge.", bullet_style))
+    story.append(Paragraph(f"• <b>Powerhouse Protection:</b> Surface powerhouse requires reinforced flood barrier walls against {river_name} surge.", bullet_style))
     story.append(Spacer(1, 10))
 
     struct_data = [
@@ -493,14 +561,14 @@ def generate_10page_detailed_pdf_report(site_data):
 
     story.append(Paragraph("<b>Executive Summary & Telemetry Roadmap:</b>", h2_style))
     story.append(Paragraph("• <b>Satellite AWS Relay:</b> Automatic Weather Station at 4,800 m to transmit live meteorological data every 15 mins.", bullet_style))
-    story.append(Paragraph("• <b>Radar Level Monitoring:</b> Non-contact radar sensors deployed at proglacial channels to alert surge breaches instantly.", bullet_style))
+    story.append(Paragraph(f"• <b>Radar Level Monitoring:</b> Non-contact radar sensors deployed along <b>{river_name}</b> to alert surge breaches instantly.", bullet_style))
     story.append(Paragraph("• <b>Automated Gate Control:</b> Direct link between upper sensors and barrage sluice gates to execute emergency drawdown.", bullet_style))
     story.append(Spacer(1, 10))
 
     eaws_data = [
         [Paragraph("<b>Telemetry Hardware Unit</b>", table_header), Paragraph("<b>Deployment Target Area</b>", table_header), Paragraph("<b>Transmission Frequency</b>", table_header)],
         [Paragraph("Automated Weather Station (AWS)", table_text), Paragraph("Upper Glacial Ridge (4,800 m)", table_text), Paragraph("15-Minute Satellite Relay", table_text)],
-        [Paragraph("Radar Water Level Gauge", table_text), Paragraph("Proglacial Outflow Channel", table_text), Paragraph("Real-Time Burst Mode", table_text)],
+        [Paragraph("Radar Water Level Gauge", table_text), Paragraph(f"Proglacial Channel ({river_name})", table_text), Paragraph("Real-Time Burst Mode", table_text)],
         [Paragraph("Acoustic Doppler Velocity Sensor", table_text), Paragraph("Desilting Inlet Structure", table_text), Paragraph("5-Minute Interval", table_text)],
     ]
     t_eaws = Table(eaws_data, colWidths=[180, 200, 160])
@@ -513,7 +581,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(t_eaws)
     story.append(PageBreak())
 
-    # PAGE 10: CAPEX ROADMAP & SIGN-OFF (Added Complete Certification Block)
+    # PAGE 10: CAPEX ROADMAP & SIGN-OFF
     story.append(Paragraph("SECTION 10: CAPEX/OPEX MITIGATION ROADMAP & SIGN-OFF", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=C_SECONDARY, spaceAfter=8))
 
@@ -534,7 +602,7 @@ def generate_10page_detailed_pdf_report(site_data):
     story.append(Spacer(1, 15))
 
     story.append(Paragraph("<b>FORMAL AUDIT CERTIFICATION & SIGN-OFF</b>", h2_style))
-    cert_text = f"This report represents an official technical evaluation conducted for <b>{company_name}</b>. All remote sensing indicators, hydrodynamic models, and risk parameters have been vetted for executive review and statutory compliance."
+    cert_text = f"This report represents an official technical evaluation conducted for <b>{company_name}</b> regarding <b>{facility_name}</b> on the <b>{river_name}</b>. All remote sensing indicators, hydrodynamic models, and risk parameters have been vetted for executive review and statutory compliance."
     story.append(Paragraph(cert_text, body_style))
     story.append(Spacer(1, 12))
 
@@ -546,6 +614,7 @@ def generate_10page_detailed_pdf_report(site_data):
         [Paragraph(f"<b>Certified By:</b> Dr. A. P. Sharma (Chief Environmental Auditor)<br/>"
                    f"<b>Designation:</b> Senior Climate Risk & Cryosphere Specialist<br/>"
                    f"<b>Operating Client Entity:</b> {company_name}<br/>"
+                   f"<b>Target River Corridor:</b> {river_name}<br/>"
                    f"<b>Audit Registry ID:</b> {asset_id}<br/>"
                    f"<b>Date of Final Issuance:</b> {curr_date}", table_text)]
     ]
@@ -589,7 +658,7 @@ if mode == "Glacier Satellite Analytics":
     with col3:
         st.markdown(f"<div class='metric-card'><div class='metric-label'>Warning Window</div><div class='metric-value'>{gdata['early_warning_window'].split(' ')[0]}</div><div class='metric-sub sub-cyan'>Lead Buffer</div></div>", unsafe_allow_html=True)
     with col4:
-        st.markdown(f"<div class='metric-card'><div class='metric-label'>Elevation</div><div class='metric-value'>{gdata['mean_elevation']}</div><div class='metric-sub sub-cyan'>High Altitude Zone</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><div class='metric-label'>Associated River</div><div class='metric-value'>{gdata['river_name']}</div><div class='metric-sub sub-cyan'>{gdata['basin']}</div></div>", unsafe_allow_html=True)
 
     st.subheader(f"🗺️ Multi-Spectral Earth Engine Imagery: {glacier_choice}")
     
@@ -634,23 +703,29 @@ else:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f"<div class='metric-card'><div class='metric-label'>Installed Capacity</div><div class='metric-value'>{selected_hydro['capacity_mw']} MW</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><div class='metric-label'>Associated River</div><div class='metric-value'>{selected_hydro['river_name']}</div></div>", unsafe_allow_html=True)
     with c2:
         st.markdown(f"<div class='metric-card'><div class='metric-label'>Operating Authority</div><div class='metric-value'>{selected_hydro['company_name']}</div></div>", unsafe_allow_html=True)
     with c3:
-        st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk Category</div><div class='metric-value'>{selected_hydro['risk_status']}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><div class='metric-label'>Installed Capacity</div><div class='metric-value'>{selected_hydro['capacity_mw']} MW</div></div>", unsafe_allow_html=True)
     with c4:
-        st.markdown(f"<div class='metric-card'><div class='metric-label'>State / Zone</div><div class='metric-value'>{selected_hydro['state']}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><div class='metric-label'>Risk / State</div><div class='metric-value'>{selected_hydro['risk_status']} ({selected_hydro['state']})</div></div>", unsafe_allow_html=True)
 
     st.subheader(f"📍 Location & Catchment Buffer Map: {selected_hydro['name']}")
+    st.caption(f"🌊 **Primary River Corridor:** {selected_hydro['river_name']} | **Basin:** {selected_hydro['river_basin']}")
+    
     hm = folium.Map(location=[selected_hydro['latitude'], selected_hydro['longitude']], zoom_start=11, tiles="OpenStreetMap")
-    folium.Marker([selected_hydro['latitude'], selected_hydro['longitude']], popup=selected_hydro['name'], icon=folium.Icon(color="red", icon="flash")).add_to(hm)
+    folium.Marker(
+        [selected_hydro['latitude'], selected_hydro['longitude']],
+        popup=f"<b>{selected_hydro['name']}</b><br>River: {selected_hydro['river_name']}",
+        icon=folium.Icon(color="red", icon="flash")
+    ).add_to(hm)
     folium.Circle([selected_hydro['latitude'], selected_hydro['longitude']], radius=selected_hydro['buffer_km']*1000, color="red", fill=True, fill_opacity=0.2).add_to(hm)
     st_folium(hm, width=1200, height=450)
 
     st.divider()
     st.subheader("📄 Dynamic PDF Report Generation Engine")
-    st.write("Generate a formal 10-page technical audit report for executive submission:")
+    st.write(f"Generate a formal 10-page technical audit report for **{selected_hydro['name']}** on the **{selected_hydro['river_name']}**:")
 
     if st.button("🚀 Generate Technical Audit PDF Report"):
         with st.spinner("Processing satellite raster metrics, hydrodynamic curves, and ReportLab layouts..."):
